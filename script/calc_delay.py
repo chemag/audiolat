@@ -1,14 +1,8 @@
 #!/usr/local/bin/python3
 
 import argparse
-import sys
-import json
-import os
 import numpy as np
 import pandas as pd
-import re
-import argparse
-import datetime
 
 
 def find_pairs(data):
@@ -36,7 +30,7 @@ def find_pairs(data):
             closest = None
             min_dist = 1
             time = play_imp[1]['time']
-            print(f"{round(time,2)} sec")
+            print(f'{round(time,2)} sec')
             for sig_imp in signals.iterrows():
                 dist = time - sig_imp[1]['time']
                 if dist > 0 and dist < min_dist:
@@ -54,7 +48,7 @@ def main():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('files', nargs='+', help='file to analyze (csv)')
     parser.add_argument('-o', '--output', default=None)
-    parser.add_argument('-l', '--label', default="capt")
+    parser.add_argument('-l', '--label', default='capt')
     options = parser.parse_args()
 
     accum_data = None
@@ -78,7 +72,7 @@ def main():
     for fl in input_files:
         average = round(
             np.mean(data.loc[data['file'] == fl]['delay'] * 1000), 2)
-        print(f"Average for {fl}: {average} ms")
+        print(f'Average for {fl}: {average} ms')
 
 
 if __name__ == '__main__':
