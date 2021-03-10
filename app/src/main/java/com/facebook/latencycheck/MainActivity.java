@@ -18,7 +18,8 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
   public static final String LOG_ID = "latencycheck";
 
-  int mSampelRate = 16000;
+  // default values
+  int mSampleRate = 16000;
   int mTimeout = 15;
   int mRecBufferSize = 32;
   int mPlayBufferSize = 32;
@@ -35,6 +36,7 @@ public class MainActivity extends AppCompatActivity {
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
 
+    // make sure the right permissions are set
     String[] permissions = retrieveNotGrantedPermissions(this);
 
     if (permissions != null && permissions.length > 0) {
@@ -48,12 +50,13 @@ public class MainActivity extends AppCompatActivity {
     android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
 
     try {
+      // read CLI arguments
       Bundle extras = this.getIntent().getExtras();
 
       if (extras != null) {
         if (extras.containsKey("sr")) {
           String rate = extras.getString("sr");
-          mSampelRate = Integer.parseInt(rate);
+          mSampleRate = Integer.parseInt(rate);
         }
         if (extras.containsKey("t")) {
           String timeout = extras.getString("t");
@@ -68,7 +71,8 @@ public class MainActivity extends AppCompatActivity {
           mPlayBufferSize = Integer.parseInt(timeout);
         }
       }
-      switch (mSampelRate) {
+      // choose chirp file
+      switch (mSampleRate) {
         case 48000:
           mReferenceFile = R.raw.chirp2_48k_300ms;
           file_path += "_chirp2_48k_300ms.raw";
@@ -82,9 +86,10 @@ public class MainActivity extends AppCompatActivity {
           file_path += "_chirp2_8k_300ms.raw";
           break;
         default:
-          Log.d(LOG_ID, "Unsupported sampelrate:" + mSampelRate);
+          Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
       }
 
+      // read the reference file into referenceData (playbackBuffer)
       InputStream is = this.getResources().openRawResource(mReferenceFile);
       final int referenceSize = is.available();
       final byte[] playbackBuffer = new byte[referenceSize];
@@ -94,6 +99,7 @@ public class MainActivity extends AppCompatActivity {
       referenceData.put(playbackBuffer); // Small files only :)
       is.close();
 
+      // read the start signal into startSignal (startSignalBuffer)
       is = this.getResources().openRawResource(mStartSignal);
       final int startsignalSize = is.available();
       final byte[] startSignalBuffer = new byte[startsignalSize];
@@ -102,12 +108,14 @@ public class MainActivity extends AppCompatActivity {
       final ByteBuffer startSignal = ByteBuffer.allocateDirect(read);
       startSignal.put(startSignalBuffer);
 
+      // start a thread that implements the experiment
       final String rec_file_path = file_path;
       Thread t = new Thread(new Runnable() {
         @Override
         public void run() {
-          runAAudio(referenceData, playbackBuffer.length / 2 /*16bit*/, startSignal,
-              startSignalBuffer.length / 2, rec_file_path);
+          runAAudio(referenceData, playbackBuffer.length / 2 /* 16 bit */,
+                    startSignal, startSignalBuffer.length / 2 /* 16 bit */,
+                    rec_file_path);
         }
       });
       t.start();
@@ -146,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
     AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
 
     for (AudioDeviceInfo info : adevs) {
-      Log.d(LOG_ID, "Product name: " + info.getProductName());
+      Log.d(LOG_ID, "product_name: " + info.getProductName());
       int[] channels = info.getChannelCounts();
 
       Log.d(LOG_ID, "type: " + info.getType());
@@ -159,8 +167,10 @@ public class MainActivity extends AppCompatActivity {
         Log.d(LOG_ID, "-- ch.rate: " + rate);
       }
     }
+
+    // pack all the info together into settings
     AudioDeviceInfo info = adevs[0]; // Take the first (and best)
-    Log.d(LOG_ID, "Call native");
+    Log.d(LOG_ID, "Calling native runAAudio");
     TestSettings settings = new TestSettings();
     settings.deviceId = info.getId();
     settings.reference = reference;
@@ -169,12 +179,10 @@ public class MainActivity extends AppCompatActivity {
     settings.startSignalSize = startSignalSize;
     settings.timeout = mTimeout; // sec
     settings.recPath = recPath;
-    settings.sampleRate = mSampelRate;
+    settings.sampleRate = mSampleRate;
     settings.recBufferSize = mRecBufferSize;
     settings.playBufferSize = mPlayBufferSize;
 
-    // int status = runAAudio(info.getId(), reference, refSize, startSignal, startSignalSize,
-    // mSampelRate, recPath);
     int status = runAAudio(settings);
     Log.d(LOG_ID, "Done");
     System.exit(0);
