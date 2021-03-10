@@ -40,35 +40,38 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   float time_sec = (float)written_frames / (float)cb_data->samplerate;
 
   if (stream == cb_data->rec_stream) {
+    LOGD("record num_frames: %d time_sec: %.2f", num_frames, time_sec);
     // recording
     if (time_sec - last_ts > 2) {
       playing = true;
-      LOGD("Rec Write start signal");
+      LOGD("record write: input num_frames: %d", num_frames - cb_data->start_signal_size);
       fwrite((int16_t *)audioData, sizeof(int16_t),
              (size_t)num_frames - cb_data->start_signal_size, cb_data->file);
+      LOGD("record write: begin num_frames: %i", cb_data->start_signal_size);
       fwrite(cb_data->start_signal, (size_t)cb_data->start_signal_size,
              sizeof(int16_t), cb_data->file);
       buffer_index = 0;
       last_ts = time_sec;
     } else {
-      LOGD("Rec Write data - %d, time: %.2f sec", num_frames, time_sec);
+      LOGD("record write: data num_frames: %d", num_frames);
       fwrite(audioData, sizeof(int16_t), (size_t)num_frames, cb_data->file);
     }
 
     written_frames += num_frames;
-    LOGD("Rec update written frames: %d", written_frames);
+    LOGD("record written_frames: %d", written_frames);
     if (time_sec > cb_data->timeout) {
       running = false;
     }
   } else {
+    LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
     if (playing && play_state == AAUDIO_STREAM_STATE_STARTED &&
         buffer_index + num_frames < cb_data->size) {
-      LOGD("Play Write chirp -%d", num_frames);
+      LOGD("playout source: end num_frames: %d", num_frames);
       memcpy(audioData, cb_data->pattern + buffer_index,
              sizeof(int16_t) * num_frames);
       buffer_index += num_frames;
     } else {
-      LOGD("Play Write silence - %d, time: %.2f sec", num_frames, time_sec);
+      LOGD("playout source: silence num_frames: %d", num_frames);
       int16_t *zeros = (int16_t *)malloc(sizeof(int16_t) * num_frames);
       memset(zeros, 0, sizeof(int16_t) * num_frames);
       memcpy(audioData, zeros, sizeof(int16_t) * num_frames);
@@ -80,10 +83,13 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
+
+// main experiment function
 extern "C" JNIEXPORT jint JNICALL
 Java_com_facebook_latencycheck_MainActivity_runAAudio(JNIEnv *env,
                                                       jobject /* this */,
                                                       jobject settings) {
+  // unpack the test settings
   jclass cSettings = env->GetObjectClass(settings);
   jfieldID fid =
       env->GetFieldID(cSettings, "reference", "Ljava/nio/ByteBuffer;");
@@ -216,37 +222,37 @@ Java_com_facebook_latencycheck_MainActivity_runAAudio(JNIEnv *env,
 
   // print current settings
   {
-    int play_frame_per_burst = AAudioStream_getFramesPerBurst(play_stream);
+    int play_frames_per_burst = AAudioStream_getFramesPerBurst(play_stream);
     int play_buffer_capacity =
         AAudioStream_getBufferCapacityInFrames(play_stream);
     int play_current_buffer_size =
         AAudioStream_getBufferSizeInFrames(play_stream);
 
-    int rec_frame_per_burst = AAudioStream_getFramesPerBurst(rec_stream);
+    int rec_frames_per_burst = AAudioStream_getFramesPerBurst(rec_stream);
     int rec_buffer_capacity =
         AAudioStream_getBufferCapacityInFrames(rec_stream);
     int rec_current_buffer_size =
         AAudioStream_getBufferSizeInFrames(rec_stream);
 
-    LOGD("Play frame per burst: %d", play_frame_per_burst);
-    LOGD("Play current_buffer_size: %d", play_current_buffer_size);
-    LOGD("Play buffer_capacity: %d", play_buffer_capacity);
-    LOGD("Play Performance mode: %d",
+    LOGD("playout play_frames_per_burst: %d", play_frames_per_burst);
+    LOGD("playout current_buffer_size: %d", play_current_buffer_size);
+    LOGD("playout buffer_capacity: %d", play_buffer_capacity);
+    LOGD("playout performance_mode: %d",
          AAudioStream_getPerformanceMode(play_stream));
 
-    LOGD("Rec frame per burst: %d", rec_frame_per_burst);
-    LOGD("Rec current_buffer_size: %d", rec_current_buffer_size);
-    LOGD("Rec buffer_capacity: %d", rec_buffer_capacity);
-    LOGD("Rec Performance mode: %d",
+    LOGD("record frames_per_burst: %d", rec_frames_per_burst);
+    LOGD("record current_buffer_size: %d", rec_current_buffer_size);
+    LOGD("record buffer_capacity: %d", rec_buffer_capacity);
+    LOGD("record performance_mode: %d",
          AAudioStream_getPerformanceMode(rec_stream));
   }
-  LOGD("Rec Start stream");
+  LOGD("record start stream");
   result = AAudioStream_requestStart(rec_stream);
   if (result) {
     LOGD("Failed to create start rec stream");
     goto cleanup;
   }
-  LOGD("Play Start stream");
+  LOGD("playout start stream");
   result = AAudioStream_requestStart(play_stream);
   if (result) {
     LOGD("Failed to start play stream");
