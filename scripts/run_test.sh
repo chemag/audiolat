@@ -21,15 +21,16 @@ for file in ${files}; do
     input=${file##*/}
     output=${file##*/}.wav
     ffmpeg -f s16le -ar "${samplerate}" -i "${input}" -ar "${samplerate}"  "${output}" -y
-    ref="${sdir}/../audio/chirp2_48k_300ms.wav"
+    begin_signal="${sdir}/../audio/begin_signal.wav"
+    end_signal="${sdir}/../audio/chirp2_48k_300ms.wav"
 
     if [[ ${samplerate} -eq 16000 ]];then
-        ref=${sdir}/../audio/chirp2_16k_300ms.wav
+        end_signal=${sdir}/../audio/chirp2_16k_300ms.wav
     elif [[ ${samplerate} -eq 8000 ]];then
-        ref="${sdir}/../audio/chirp2_8k_300ms.wav"
+        end_signal="${sdir}/../audio/chirp2_8k_300ms.wav"
     fi
     echo "Find pulse"
-    "${sdir}/find_pulses.py" "${sdir}/../audio/begin_signal.wav" "${ref}" -i "${output}" -sr "${samplerate}" -t 20
+    "${sdir}/find_pulses.py" "${begin_signal}" "${end_signal}" -i "${output}" -sr "${samplerate}" -t 20
 
 done
     
