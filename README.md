@@ -1,5 +1,5 @@
-# latencycheck
-A tool to measure ear-to-mouth (output->input) delay in android systems.
+# audiolat
+A tool to measure audio latency (ear-to-mouth delay) in android systems.
 
 
 # 1. Introduction
@@ -161,12 +161,12 @@ Append: 195698 @ 12.23 s, cc: 42
 
 The script has find 11 occurrences of the begin signal, and 4 occurrences of the end signal. If we match the closests ones, we find the following pairs:
 
-|begin |end |`audio_latency` |
-|--- |--- |--- |--- |--- |
-|2.04 |2.17 |130 ms |
-|4.04 |4.19 |150 ms |
-|8.06 |8.21 |150 ms |
-|12.1 |12.23 |130 ms |
+| begin | end   | `audio_latency` |
+| ---   | ---   | ---             |
+|  2.04 |  2.17 | 130 ms          |
+|  4.04 |  4.19 | 150 ms          |
+|  8.06 |  8.21 | 150 ms          |
+| 12.1  | 12.23 | 130 ms          |
 
 Or an average of 140 ms audio latency.
 
