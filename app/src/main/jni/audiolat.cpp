@@ -30,7 +30,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
                                            void *audioData,
                                            int32_t num_frames) {
   static int written_frames = 0;
-  static int buffer_index = 0;
+  static int play_buffer_index = 0;
+  static int rec_buffer_index = 0;
   static bool playing = false;
   static float last_ts = 0;
 
@@ -42,36 +43,38 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   if (stream == cb_data->record_stream) {
     LOGD("record num_frames: %d time_sec: %.2f", num_frames, time_sec);
     // recording
-    if (time_sec - last_ts > 2) {
+    if (time_sec - last_ts > 2 || rec_buffer_index > 0) {
       playing = true;
-      LOGD("record write: input num_frames: %d", num_frames - cb_data->begin_signal_size);
+      LOGD("record write begin signal: input num_frames: %d", num_frames - cb_data->begin_signal_size);
       fwrite((int16_t *)audioData, sizeof(int16_t),
-             (size_t)num_frames - cb_data->begin_signal_size, cb_data->output_file_descriptor);
-      LOGD("record write: begin num_frames: %i", cb_data->begin_signal_size);
-      fwrite(cb_data->begin_signal, (size_t)cb_data->begin_signal_size,
+             (size_t)num_frames - cb_data->begin_signal_size, cb_data->output_file_descriptor);\
+      size_t size = (num_frames >  cb_data->begin_signal_size - rec_buffer_index)?
+                            cb_data->begin_signal_size - rec_buffer_index: num_frames;
+
+      fwrite(cb_data->begin_signal + rec_buffer_index, size,
              sizeof(int16_t), cb_data->output_file_descriptor);
-      buffer_index = 0;
+      rec_buffer_index += size;
+      if (rec_buffer_index >= cb_data->begin_signal_size) {
+        rec_buffer_index = 0;
+      }
+      play_buffer_index = 0;
       last_ts = time_sec;
     } else {
-      LOGD("record write: data num_frames: %d", num_frames);
       fwrite(audioData, sizeof(int16_t), (size_t)num_frames, cb_data->output_file_descriptor);
     }
 
     written_frames += num_frames;
-    LOGD("record written_frames: %d", written_frames);
     if (time_sec > cb_data->timeout) {
       running = false;
     }
   } else {
-    LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
     if (playing && playout_state == AAUDIO_STREAM_STATE_STARTED &&
-        buffer_index + num_frames < cb_data->end_signal_size) {
+        play_buffer_index + num_frames < cb_data->end_signal_size) {
       LOGD("playout source: end num_frames: %d", num_frames);
-      memcpy(audioData, cb_data->end_signal + buffer_index,
+      memcpy(audioData, cb_data->end_signal + play_buffer_index,
              sizeof(int16_t) * num_frames);
-      buffer_index += num_frames;
+      play_buffer_index += num_frames;
     } else {
-      LOGD("playout source: silence num_frames: %d", num_frames);
       int16_t *zeros = (int16_t *)malloc(sizeof(int16_t) * num_frames);
       memset(zeros, 0, sizeof(int16_t) * num_frames);
       memcpy(audioData, zeros, sizeof(int16_t) * num_frames);
