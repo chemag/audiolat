@@ -21,10 +21,10 @@ public class MainActivity extends AppCompatActivity {
   // default values
   int mSampleRate = 16000;
   int mTimeout = 15;
-  int mRecBufferSize = 32;
-  int mPlayBufferSize = 32;
-  int mReferenceFile = R.raw.chirp2_16k_300ms;
-  int mStartSignal = R.raw.start_signal;
+  int mRecordBufferSize = 32;
+  int mPlayoutBufferSize = 32;
+  int mBeginSignal = R.raw.begin_signal;
+  int mEndSignal = R.raw.chirp2_16k_300ms;
 
   static {
     System.loadLibrary("latencycheck");
@@ -64,57 +64,57 @@ public class MainActivity extends AppCompatActivity {
         }
         if (extras.containsKey("rbs")) {
           String timeout = extras.getString("rbs");
-          mRecBufferSize = Integer.parseInt(timeout);
+          mRecordBufferSize = Integer.parseInt(timeout);
         }
         if (extras.containsKey("pbs")) {
           String timeout = extras.getString("pbs");
-          mPlayBufferSize = Integer.parseInt(timeout);
+          mPlayoutBufferSize = Integer.parseInt(timeout);
         }
       }
-      // choose chirp file
+      // choose end signal file
       switch (mSampleRate) {
         case 48000:
-          mReferenceFile = R.raw.chirp2_48k_300ms;
+          mEndSignal = R.raw.chirp2_48k_300ms;
           file_path += "_chirp2_48k_300ms.raw";
           break;
         case 16000:
-          mReferenceFile = R.raw.chirp2_16k_300ms;
+          mEndSignal = R.raw.chirp2_16k_300ms;
           file_path += "_chirp2_16k_300ms.raw";
           break;
         case 8000:
-          mReferenceFile = R.raw.chirp2_8k_300ms;
+          mEndSignal = R.raw.chirp2_8k_300ms;
           file_path += "_chirp2_8k_300ms.raw";
           break;
         default:
           Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
       }
 
-      // read the reference file into referenceData (playbackBuffer)
-      InputStream is = this.getResources().openRawResource(mReferenceFile);
-      final int referenceSize = is.available();
-      final byte[] playbackBuffer = new byte[referenceSize];
+      // read the end signal into endSignal
+      InputStream is = this.getResources().openRawResource(mEndSignal);
+      final int endSignalSize = is.available();
+      final byte[] endSignalBuffer = new byte[endSignalSize];
 
-      int read = is.read(playbackBuffer);
-      final ByteBuffer referenceData = ByteBuffer.allocateDirect(read);
-      referenceData.put(playbackBuffer); // Small files only :)
+      int read = is.read(endSignalBuffer);
+      final ByteBuffer endSignal = ByteBuffer.allocateDirect(read);
+      endSignal.put(endSignalBuffer); // Small files only :)
       is.close();
 
-      // read the start signal into startSignal (startSignalBuffer)
-      is = this.getResources().openRawResource(mStartSignal);
-      final int startsignalSize = is.available();
-      final byte[] startSignalBuffer = new byte[startsignalSize];
+      // read the begin signal into beginSignal
+      is = this.getResources().openRawResource(mBeginSignal);
+      final int beginSignalSize = is.available();
+      final byte[] beginSignalBuffer = new byte[beginSignalSize];
 
-      read = is.read(startSignalBuffer);
-      final ByteBuffer startSignal = ByteBuffer.allocateDirect(read);
-      startSignal.put(startSignalBuffer);
+      read = is.read(beginSignalBuffer);
+      final ByteBuffer beginSignal = ByteBuffer.allocateDirect(read);
+      beginSignal.put(beginSignalBuffer);
 
-      // start a thread that implements the experiment
+      // begin a thread that implements the experiment
       final String rec_file_path = file_path;
       Thread t = new Thread(new Runnable() {
         @Override
         public void run() {
-          runAAudio(referenceData, playbackBuffer.length / 2 /* 16 bit */,
-                    startSignal, startSignalBuffer.length / 2 /* 16 bit */,
+          runAAudio(endSignal, endSignalBuffer.length / 2 /* 16 bit */,
+                    beginSignal, beginSignalBuffer.length / 2 /* 16 bit */,
                     rec_file_path);
         }
       });
@@ -148,8 +148,8 @@ public class MainActivity extends AppCompatActivity {
     return nonGrantedPerms.toArray(new String[nonGrantedPerms.size()]);
   }
 
-  private void runAAudio(ByteBuffer reference, int refSize, ByteBuffer startSignal,
-      int startSignalSize, String recPath) {
+  private void runAAudio(ByteBuffer endSignal, int endSignalSize,
+      ByteBuffer beginSignal, int beginSignalSize, String outputFilePath) {
     AudioManager aman = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
 
@@ -173,15 +173,15 @@ public class MainActivity extends AppCompatActivity {
     Log.d(LOG_ID, "Calling native runAAudio");
     TestSettings settings = new TestSettings();
     settings.deviceId = info.getId();
-    settings.reference = reference;
-    settings.refSize = refSize;
-    settings.startSignal = startSignal;
-    settings.startSignalSize = startSignalSize;
+    settings.endSignal = endSignal;
+    settings.endSignalSize = endSignalSize;
+    settings.beginSignal = beginSignal;
+    settings.beginSignalSize = beginSignalSize;
     settings.timeout = mTimeout; // sec
-    settings.recPath = recPath;
+    settings.outputFilePath = outputFilePath;
     settings.sampleRate = mSampleRate;
-    settings.recBufferSize = mRecBufferSize;
-    settings.playBufferSize = mPlayBufferSize;
+    settings.recordBufferSize = mRecordBufferSize;
+    settings.playoutBufferSize = mPlayoutBufferSize;
 
     int status = runAAudio(settings);
     Log.d(LOG_ID, "Done");

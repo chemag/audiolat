@@ -15,13 +15,13 @@
 static bool running = false;
 
 struct callback_data {
-  FILE *file;
-  AAudioStream *rec_stream;
-  AAudioStream *play_stream;
-  int16_t *pattern;
-  int size;
-  int16_t *start_signal;
-  int start_signal_size;
+  FILE *output_file_descriptor;
+  AAudioStream *record_stream;
+  AAudioStream *playout_stream;
+  int16_t *end_signal;
+  int end_signal_size;
+  int16_t *begin_signal;
+  int begin_signal_size;
   int samplerate;
   int timeout;
 };
@@ -35,26 +35,26 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   static float last_ts = 0;
 
   struct callback_data *cb_data = (struct callback_data *)userData;
-  aaudio_stream_state_t play_state =
-      AAudioStream_getState(cb_data->play_stream);
+  aaudio_stream_state_t playout_state =
+      AAudioStream_getState(cb_data->playout_stream);
   float time_sec = (float)written_frames / (float)cb_data->samplerate;
 
-  if (stream == cb_data->rec_stream) {
+  if (stream == cb_data->record_stream) {
     LOGD("record num_frames: %d time_sec: %.2f", num_frames, time_sec);
     // recording
     if (time_sec - last_ts > 2) {
       playing = true;
-      LOGD("record write: input num_frames: %d", num_frames - cb_data->start_signal_size);
+      LOGD("record write: input num_frames: %d", num_frames - cb_data->begin_signal_size);
       fwrite((int16_t *)audioData, sizeof(int16_t),
-             (size_t)num_frames - cb_data->start_signal_size, cb_data->file);
-      LOGD("record write: begin num_frames: %i", cb_data->start_signal_size);
-      fwrite(cb_data->start_signal, (size_t)cb_data->start_signal_size,
-             sizeof(int16_t), cb_data->file);
+             (size_t)num_frames - cb_data->begin_signal_size, cb_data->output_file_descriptor);
+      LOGD("record write: begin num_frames: %i", cb_data->begin_signal_size);
+      fwrite(cb_data->begin_signal, (size_t)cb_data->begin_signal_size,
+             sizeof(int16_t), cb_data->output_file_descriptor);
       buffer_index = 0;
       last_ts = time_sec;
     } else {
       LOGD("record write: data num_frames: %d", num_frames);
-      fwrite(audioData, sizeof(int16_t), (size_t)num_frames, cb_data->file);
+      fwrite(audioData, sizeof(int16_t), (size_t)num_frames, cb_data->output_file_descriptor);
     }
 
     written_frames += num_frames;
@@ -64,10 +64,10 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     }
   } else {
     LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
-    if (playing && play_state == AAUDIO_STREAM_STATE_STARTED &&
-        buffer_index + num_frames < cb_data->size) {
+    if (playing && playout_state == AAUDIO_STREAM_STATE_STARTED &&
+        buffer_index + num_frames < cb_data->end_signal_size) {
       LOGD("playout source: end num_frames: %d", num_frames);
-      memcpy(audioData, cb_data->pattern + buffer_index,
+      memcpy(audioData, cb_data->end_signal + buffer_index,
              sizeof(int16_t) * num_frames);
       buffer_index += num_frames;
     } else {
@@ -84,196 +84,202 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
 }
 
 
+void log_current_settings(AAudioStream *playout_stream, AAudioStream *record_stream) {
+  // print current settings
+  int playout_frames_per_burst = AAudioStream_getFramesPerBurst(playout_stream);
+  int playout_buffer_capacity =
+      AAudioStream_getBufferCapacityInFrames(playout_stream);
+  int playout_current_buffer_size =
+      AAudioStream_getBufferSizeInFrames(playout_stream);
+
+  int record_frames_per_burst = AAudioStream_getFramesPerBurst(record_stream);
+  int record_buffer_capacity =
+      AAudioStream_getBufferCapacityInFrames(record_stream);
+  int record_current_buffer_size =
+      AAudioStream_getBufferSizeInFrames(record_stream);
+
+  LOGD("playout frames_per_burst: %d", playout_frames_per_burst);
+  LOGD("playout current_buffer_size: %d", playout_current_buffer_size);
+  LOGD("playout buffer_capacity: %d", playout_buffer_capacity);
+  LOGD("playout performance_mode: %d",
+       AAudioStream_getPerformanceMode(playout_stream));
+
+  LOGD("record frames_per_burst: %d", record_frames_per_burst);
+  LOGD("record current_buffer_size: %d", record_current_buffer_size);
+  LOGD("record buffer_capacity: %d", record_buffer_capacity);
+  LOGD("record performance_mode: %d",
+       AAudioStream_getPerformanceMode(record_stream));
+}
+
+
 // main experiment function
 extern "C" JNIEXPORT jint JNICALL
 Java_com_facebook_latencycheck_MainActivity_runAAudio(JNIEnv *env,
                                                       jobject /* this */,
                                                       jobject settings) {
-  // unpack the test settings
+  aaudio_result_t result;
+  AAudioStream *playout_stream = NULL;
+  AAudioStream *record_stream = NULL;
+  AAudioStreamBuilder *playout_builder = NULL;
+  AAudioStreamBuilder *record_builder = NULL;
+  int16_t *end_signal_buffer = NULL;
+  int16_t *begin_signal_buffer = NULL;
+
+  // unpack the test utils
   jclass cSettings = env->GetObjectClass(settings);
   jfieldID fid =
-      env->GetFieldID(cSettings, "reference", "Ljava/nio/ByteBuffer;");
-  jobject reference = env->GetObjectField(settings, fid);
-  fid = env->GetFieldID(cSettings, "refSize", "I");
-  jint ref_size = env->GetIntField(settings, fid);
-  fid = env->GetFieldID(cSettings, "startSignal", "Ljava/nio/ByteBuffer;");
-  jobject start_signal = env->GetObjectField(settings, fid);
-  fid = env->GetFieldID(cSettings, "startSignalSize", "I");
-  jint start_signal_size = env->GetIntField(settings, fid);
+      env->GetFieldID(cSettings, "endSignal", "Ljava/nio/ByteBuffer;");
+  jobject end_signal = env->GetObjectField(settings, fid);
+  fid = env->GetFieldID(cSettings, "endSignalSize", "I");
+  jint end_signal_size = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "beginSignal", "Ljava/nio/ByteBuffer;");
+  jobject begin_signal = env->GetObjectField(settings, fid);
+  fid = env->GetFieldID(cSettings, "beginSignalSize", "I");
+  jint begin_signal_size = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "sampleRate", "I");
   jint sample_rate = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "deviceId", "I");
   jint device_id = env->GetIntField(settings, fid);
-  fid = env->GetFieldID(cSettings, "recPath", "Ljava/lang/String;");
-  jstring rec_path = (jstring)env->GetObjectField(settings, fid);
+  fid = env->GetFieldID(cSettings, "outputFilePath", "Ljava/lang/String;");
+  jstring output_file_path = (jstring)env->GetObjectField(settings, fid);
   fid = env->GetFieldID(cSettings, "timeout", "I");
   jint timeout = env->GetIntField(settings, fid);
-  fid = env->GetFieldID(cSettings, "playBufferSize", "I");
-  jint play_buffer_size = env->GetIntField(settings, fid);
-  fid = env->GetFieldID(cSettings, "recBufferSize", "I");
-  jint rec_buffer_size = env->GetIntField(settings, fid);
-
-  struct callback_data cb_data;
+  fid = env->GetFieldID(cSettings, "playoutBufferSize", "I");
+  jint playout_buffer_size = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "recordBufferSize", "I");
+  jint record_buffer_size = env->GetIntField(settings, fid);
 
   running = true;
+
+  struct callback_data cb_data;
   memset(&cb_data, 0, sizeof(struct callback_data));
   LOGD("** SAMPLE RATE == %d **", sample_rate);
 
-  AAudioStreamBuilder *play_builder = NULL;
-  AAudioStreamBuilder *rec_builder = NULL;
-  AAudioStream *play_stream = NULL;
-  AAudioStream *rec_stream = NULL;
-  aaudio_result_t result;
-
-  struct stat file_info;
-  FILE *rawfile = NULL;
-  int16_t *pattern = NULL;
-  int16_t *start_signal_impulse = NULL;
-
-  const char *filename = env->GetStringUTFChars(rec_path, 0);
-  LOGD("Open file: %s", filename);
-  rawfile = fopen(filename, "wb");
-  if (rawfile == NULL) {
+  // open the output file
+  const char *output_file_name = env->GetStringUTFChars(output_file_path, 0);
+  LOGD("Open file: %s", output_file_name);
+  FILE *output_file_descriptor = fopen(output_file_name, "wb");
+  if (output_file_descriptor == NULL) {
     LOGD("Failed to open file");
     goto cleanup;
   }
 
-  pattern = (int16_t *)env->GetDirectBufferAddress(reference);
-  if (!pattern) {
+  // get access to the begin and end signal buffers
+  end_signal_buffer = (int16_t *)env->GetDirectBufferAddress(end_signal);
+  if (!end_signal_buffer) {
+    LOGD("Failed to get direct buffer");
+    return -1;
+  }
+  begin_signal_buffer = (int16_t *)env->GetDirectBufferAddress(begin_signal);
+  if (!begin_signal_buffer) {
     LOGD("Failed to get direct buffer");
     return -1;
   }
 
-  start_signal_impulse = (int16_t *)env->GetDirectBufferAddress(start_signal);
-  if (!start_signal_impulse) {
-    LOGD("Failed to get direct buffer");
-    return -1;
-  }
-
-  // --- audio player
-  result = AAudio_createStreamBuilder(&play_builder);
-  LOGD("Create play stream: %d", result);
+  // set up the playout (downlink, speaker) audio stream
+  result = AAudio_createStreamBuilder(&playout_builder);
+  LOGD("Create playout stream: %d", result);
   if (result) {
-    LOGD("Failed to create play stream");
+    LOGD("Failed to create playout stream");
     goto cleanup;
   }
-  AAudioStreamBuilder_setDeviceId(
-      play_builder, AAUDIO_UNSPECIFIED);  // more of this later...device_id);
-  AAudioStreamBuilder_setDirection(play_builder, AAUDIO_DIRECTION_OUTPUT);
-  AAudioStreamBuilder_setSharingMode(
-      play_builder, AAUDIO_SHARING_MODE_SHARED);  // AAUDIO_SHARING_MODE_EXCLUSIVE
-                                                  // no available
-  AAudioStreamBuilder_setSampleRate(play_builder, sample_rate);
-  AAudioStreamBuilder_setChannelCount(play_builder, 1);
-  AAudioStreamBuilder_setFormat(play_builder, AAUDIO_FORMAT_PCM_I16);
-  AAudioStreamBuilder_setBufferCapacityInFrames(play_builder, 960);
-  AAudioStreamBuilder_setPerformanceMode(play_builder,
+  // more of this later...device_id);
+  AAudioStreamBuilder_setDeviceId(playout_builder, AAUDIO_UNSPECIFIED);
+  AAudioStreamBuilder_setDirection(playout_builder, AAUDIO_DIRECTION_OUTPUT);
+  // AAUDIO_SHARING_MODE_EXCLUSIVE no available
+  AAudioStreamBuilder_setSharingMode(playout_builder, AAUDIO_SHARING_MODE_SHARED);
+  AAudioStreamBuilder_setSampleRate(playout_builder, sample_rate);
+  AAudioStreamBuilder_setChannelCount(playout_builder, 1);
+  AAudioStreamBuilder_setFormat(playout_builder, AAUDIO_FORMAT_PCM_I16);
+  AAudioStreamBuilder_setBufferCapacityInFrames(playout_builder, 960);
+  AAudioStreamBuilder_setPerformanceMode(playout_builder,
                                          AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
-  AAudioStreamBuilder_setDataCallback(play_builder, dataCallback, &cb_data);
+  AAudioStreamBuilder_setDataCallback(playout_builder, dataCallback, &cb_data);
 
-  // --- audio recorder
-  result = AAudio_createStreamBuilder(&rec_builder);
-  LOGD("Create rec stream: %d", result);
+  // set up the record (uplink, mic) audio stream
+  result = AAudio_createStreamBuilder(&record_builder);
+  LOGD("Create record stream: %d", result);
   if (result) {
-    LOGD("Failed to create rec stream");
+    LOGD("Failed to create record stream");
     goto cleanup;
   }
-  AAudioStreamBuilder_setDeviceId(rec_builder, device_id);
-  AAudioStreamBuilder_setDirection(rec_builder, AAUDIO_DIRECTION_INPUT);
-  AAudioStreamBuilder_setSharingMode(
-      rec_builder, AAUDIO_SHARING_MODE_SHARED);  // AAUDIO_SHARING_MODE_EXCLUSIVE
-                                                 // no available
-  AAudioStreamBuilder_setSampleRate(rec_builder, sample_rate);
-  AAudioStreamBuilder_setChannelCount(rec_builder, 1);
-  AAudioStreamBuilder_setFormat(rec_builder, AAUDIO_FORMAT_PCM_I16);
-  AAudioStreamBuilder_setPerformanceMode(rec_builder,
+  AAudioStreamBuilder_setDeviceId(record_builder, device_id);
+  AAudioStreamBuilder_setDirection(record_builder, AAUDIO_DIRECTION_INPUT);
+  // AAUDIO_SHARING_MODE_EXCLUSIVE no available
+  AAudioStreamBuilder_setSharingMode(record_builder, AAUDIO_SHARING_MODE_SHARED);
+  AAudioStreamBuilder_setSampleRate(record_builder, sample_rate);
+  AAudioStreamBuilder_setChannelCount(record_builder, 1);
+  AAudioStreamBuilder_setFormat(record_builder, AAUDIO_FORMAT_PCM_I16);
+  AAudioStreamBuilder_setPerformanceMode(record_builder,
                                          AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
-  AAudioStreamBuilder_setBufferCapacityInFrames(rec_builder, 64);
-  AAudioStreamBuilder_setInputPreset(rec_builder,
+  AAudioStreamBuilder_setBufferCapacityInFrames(record_builder, 64);
+  AAudioStreamBuilder_setInputPreset(record_builder,
                                      AAUDIO_INPUT_PRESET_UNPROCESSED);
-  AAudioStreamBuilder_setDataCallback(rec_builder, dataCallback, &cb_data);
+  AAudioStreamBuilder_setDataCallback(record_builder, dataCallback, &cb_data);
 
-  // Streams
-  result = AAudioStreamBuilder_openStream(play_builder, &play_stream);
-  LOGD("Open play stream: %d", result);
+  // open both streams
+  result = AAudioStreamBuilder_openStream(playout_builder, &playout_stream);
+  LOGD("Open playout stream: %d", result);
   if (result) {
-    LOGD("Failed to create open play stream");
+    LOGD("Failed to create open playout stream");
+    goto cleanup;
+  }
+  result = AAudioStreamBuilder_openStream(record_builder, &record_stream);
+  LOGD("Open record stream: %d", result);
+  if (result) {
+    LOGD("Failed to create open record stream");
     goto cleanup;
   }
 
-  result = AAudioStreamBuilder_openStream(rec_builder, &rec_stream);
-  LOGD("Open rec stream: %d", result);
-  if (result) {
-    LOGD("Failed to create open rec stream");
-    goto cleanup;
-  }
+  // set stream sizes
+  AAudioStream_setBufferSizeInFrames(playout_stream, playout_buffer_size);
+  AAudioStream_setBufferSizeInFrames(record_stream, record_buffer_size);
 
-  AAudioStream_setBufferSizeInFrames(play_stream, play_buffer_size);
-  AAudioStream_setBufferSizeInFrames(rec_stream, rec_buffer_size);
-  cb_data.file = rawfile;
-  cb_data.rec_stream = rec_stream;
-  cb_data.play_stream = play_stream;
-  cb_data.pattern = pattern;
-  cb_data.size = ref_size;
-  cb_data.start_signal = start_signal_impulse;
-  cb_data.start_signal_size = start_signal_size;
+  // set the callback data
+  cb_data.output_file_descriptor = output_file_descriptor;
+  cb_data.record_stream = record_stream;
+  cb_data.playout_stream = playout_stream;
+  cb_data.end_signal = end_signal_buffer;
+  cb_data.end_signal_size = end_signal_size;
+  cb_data.begin_signal = begin_signal_buffer;
+  cb_data.begin_signal_size = begin_signal_size;
   cb_data.samplerate = sample_rate;
   cb_data.timeout = timeout;
 
-  // print current settings
-  {
-    int play_frames_per_burst = AAudioStream_getFramesPerBurst(play_stream);
-    int play_buffer_capacity =
-        AAudioStream_getBufferCapacityInFrames(play_stream);
-    int play_current_buffer_size =
-        AAudioStream_getBufferSizeInFrames(play_stream);
+  log_current_settings(playout_stream, record_stream);
 
-    int rec_frames_per_burst = AAudioStream_getFramesPerBurst(rec_stream);
-    int rec_buffer_capacity =
-        AAudioStream_getBufferCapacityInFrames(rec_stream);
-    int rec_current_buffer_size =
-        AAudioStream_getBufferSizeInFrames(rec_stream);
-
-    LOGD("playout play_frames_per_burst: %d", play_frames_per_burst);
-    LOGD("playout current_buffer_size: %d", play_current_buffer_size);
-    LOGD("playout buffer_capacity: %d", play_buffer_capacity);
-    LOGD("playout performance_mode: %d",
-         AAudioStream_getPerformanceMode(play_stream));
-
-    LOGD("record frames_per_burst: %d", rec_frames_per_burst);
-    LOGD("record current_buffer_size: %d", rec_current_buffer_size);
-    LOGD("record buffer_capacity: %d", rec_buffer_capacity);
-    LOGD("record performance_mode: %d",
-         AAudioStream_getPerformanceMode(rec_stream));
-  }
+  // start the streams
   LOGD("record start stream");
-  result = AAudioStream_requestStart(rec_stream);
+  result = AAudioStream_requestStart(record_stream);
   if (result) {
-    LOGD("Failed to create start rec stream");
+    LOGD("Failed to create start record stream");
     goto cleanup;
   }
   LOGD("playout start stream");
-  result = AAudioStream_requestStart(play_stream);
+  result = AAudioStream_requestStart(playout_stream);
   if (result) {
-    LOGD("Failed to start play stream");
+    LOGD("Failed to start playout stream");
     goto cleanup;
   }
 
+  // wait until it is done
   while (running) {
     sleep(2);
   }
 
-  AAudioStream_requestStop(rec_stream);
-  AAudioStream_requestStop(play_stream);
+  // cleanup
+  AAudioStream_requestStop(record_stream);
+  AAudioStream_requestStop(playout_stream);
 
-  stat(filename, &file_info);
-  fclose(rawfile);
+  struct stat file_info;
+  stat(output_file_name, &file_info);
+  fclose(output_file_descriptor);
 
 cleanup:
   LOGD("Cleanup");
-  if (play_stream) AAudioStream_close(play_stream);
-  if (rec_stream) AAudioStream_close(rec_stream);
-  if (play_builder) AAudioStreamBuilder_delete(play_builder);
-  if (rec_builder) AAudioStreamBuilder_delete(rec_builder);
+  if (playout_stream) AAudioStream_close(playout_stream);
+  if (record_stream) AAudioStream_close(record_stream);
+  if (playout_builder) AAudioStreamBuilder_delete(playout_builder);
+  if (record_builder) AAudioStreamBuilder_delete(record_builder);
   return 0;
 }

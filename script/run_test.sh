@@ -29,7 +29,7 @@ for file in ${files}; do
         ref="${sdir}/../audio/chirp2_8k_300ms.wav"
     fi
     echo "Find pulse"
-    "${sdir}/find_pulses.py" "${sdir}/../audio/start_signal.wav" "${ref}" -i "${output}" -sr "${samplerate}" -t 20
+    "${sdir}/find_pulses.py" "${sdir}/../audio/begin_signal.wav" "${ref}" -i "${output}" -sr "${samplerate}" -t 20
 
 done
     

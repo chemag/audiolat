@@ -6,12 +6,12 @@ public class TestSettings {
   public int samplerate;
   public int timeout;
   int deviceId;
-  ByteBuffer reference;
-  int refSize;
-  ByteBuffer startSignal;
-  int startSignalSize;
+  ByteBuffer endSignal;
+  int endSignalSize;
+  ByteBuffer beginSignal;
+  int beginSignalSize;
   int sampleRate;
-  int playBufferSize;
-  int recBufferSize;
-  String recPath;
+  int playoutBufferSize;
+  int recordBufferSize;
+  String outputFilePath;
 }
