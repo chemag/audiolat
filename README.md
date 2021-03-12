@@ -59,7 +59,7 @@ $ adb install ./app/build/outputs/apk/debug/app-debug.apk
 Note that you can uninstall the app at any moment by running:
 
 ```
-$ adb uninstall com.facebook.latencycheck
+$ adb uninstall com.facebook.audiolat
 ```
 
 
@@ -88,7 +88,7 @@ $ ./gradlew installDebug
 (2) Run the app for the very first time to get permissions
 
 ```
-$ adb shell am start -n com.facebook.latencycheck/.MainActivity
+$ adb shell am start -n com.facebook.audiolat/.MainActivity
 ```
 
 The very first time you run the app, you will receive 2 requests to give permissions to the app. The app needs:
@@ -99,13 +99,13 @@ The very first time you run the app, you will receive 2 requests to give permiss
 
 (3) Run an experiment
 
-Compared to other solutions, latencycheck is not very sensitive to background noise. However, results are better if the volume of the playout in the DUT is high.
+Compared to other solutions, audiolat is not very sensitive to background noise. However, results are better if the volume of the playout in the DUT is high.
 
 The syntax of the experiment is:
 
 ```
-$ adb shell am force-stop com.facebook.latencycheck
-$ adb shell am start -n com.facebook.latencycheck/.MainActivity [parameters]
+$ adb shell am force-stop com.facebook.audiolat
+$ adb shell am start -n com.facebook.audiolat/.MainActivity [parameters]
 ```
 
 where the possible parameters are:
@@ -118,7 +118,7 @@ where the possible parameters are:
 For example, to use 512 frames as the size of the playout buffer
 
 ```
-$ adb shell am start -n com.facebook.latencycheck/.MainActivity -e pbs 512
+$ adb shell am start -n com.facebook.audiolat/.MainActivity -e pbs 512
 ```
 
 Run the command. You should hear some chirps (a signal of continuously increasing frequency). Wait until you hear no more chirps (around the test length, or 15 seconds by default).
@@ -126,18 +126,18 @@ Run the command. You should hear some chirps (a signal of continuously increasin
 
 (4) Analyze results
 
-The recorded file can be found in `/sdcard/lc_capture*.raw`. First pull it
+The recorded file can be found in `/sdcard/audiolat*.raw`. First pull it
 and convert it to pcm s16 wav.
 
 ```
-$ adb pull /sdcard/lc_capture_chirp2_16k_300ms.raw .
-$ ffmpeg -f s16le -acodec pcm_s16le -ac 1 -ar 16000 -i lc_capture_chirp2_16k_300ms.raw lc_capture_chirp2_16k_300ms.raw.wav
+$ adb pull /sdcard/audiolat_chirp2_16k_300ms.raw .
+$ ffmpeg -f s16le -acodec pcm_s16le -ac 1 -ar 16000 -i audiolat_chirp2_16k_300ms.raw audiolat_chirp2_16k_300ms.raw.wav
 ```
 
 Then, run the analysis in the wav file:
 
 ```
-$ ./scripts/find_pulses.py ./audio/begin_signal.wav ./audio/chirp2_16k_300ms.wav -i lc_capture_chirp2_16k_300ms.raw.wav -sr 16000 -t 20
+$ ./scripts/find_pulses.py ./audio/begin_signal.wav ./audio/chirp2_16k_300ms.wav -i audiolat_chirp2_16k_300ms.raw.wav -sr 16000 -t 20
 ** Check for ./audio/begin_signal.wav
 calc, dist data len = 255038, template len = 32
 Append: 22644 @ 1.42 s, cc: 49

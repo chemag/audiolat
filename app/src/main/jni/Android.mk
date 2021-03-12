@@ -4,8 +4,8 @@ include $(CLEAR_VARS)
 LOCAL_LDFLAGS += -L$(LOCAL_PATH)/lib
 LOCAL_LDLIBS :=  -llog -laaudio
 
-LOCAL_MODULE    := liblatencycheck
-LOCAL_SRC_FILES := latencycheck.cpp
+LOCAL_MODULE    := libaudiolat
+LOCAL_SRC_FILES := audiolat.cpp
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include  \
 

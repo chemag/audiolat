@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.facebook.latencycheck">
+    package="com.facebook.audiolat">
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -12,7 +12,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme"
         android:installLocation="preferExternal">
-        <activity android:name="com.facebook.latencycheck.MainActivity">
+        <activity android:name="com.facebook.audiolat.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 

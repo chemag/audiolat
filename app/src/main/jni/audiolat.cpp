@@ -10,7 +10,7 @@
 //#include <android/trace.h>
 #include <dlfcn.h>
 #define LOGD(...) \
-  __android_log_print(ANDROID_LOG_DEBUG, "latencycheck", __VA_ARGS__)
+  __android_log_print(ANDROID_LOG_DEBUG, "audiolat", __VA_ARGS__)
 
 static bool running = false;
 
@@ -114,9 +114,9 @@ void log_current_settings(AAudioStream *playout_stream, AAudioStream *record_str
 
 // main experiment function
 extern "C" JNIEXPORT jint JNICALL
-Java_com_facebook_latencycheck_MainActivity_runAAudio(JNIEnv *env,
-                                                      jobject /* this */,
-                                                      jobject settings) {
+Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
+                                                  jobject /* this */,
+                                                  jobject settings) {
   aaudio_result_t result;
   AAudioStream *playout_stream = nullptr;
   AAudioStream *record_stream = nullptr;

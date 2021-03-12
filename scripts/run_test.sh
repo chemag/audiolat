@@ -6,16 +6,16 @@ recbuff=$3
 script=${BASH_SOURCE[0]}
 sdir=${script%/*}
 
-adb shell am force-stop com.facebook.latencycheck
-files=$(adb shell ls /sdcard/lc_capture*.raw)
+adb shell am force-stop com.facebook.audiolat
+files=$(adb shell ls /sdcard/audiolat*.raw)
 for file in ${files}; do
     adb shell rm "${file}"
 done
-adb shell am start -n com.facebook.latencycheck/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}"
+adb shell am start -n com.facebook.audiolat/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}"
 sleep "${timeout}"
 # give me some startup margin
 sleep 3
-files=$(adb shell ls /sdcard/lc_capture*.raw)
+files=$(adb shell ls /sdcard/audiolat*.raw)
 for file in ${files}; do
     adb pull "${file}"
     input=${file##*/}

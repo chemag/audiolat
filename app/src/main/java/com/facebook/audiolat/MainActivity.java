@@ -1,4 +1,4 @@
-package com.facebook.latencycheck;
+package com.facebook.audiolat;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -16,7 +16,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
-  public static final String LOG_ID = "latencycheck";
+  public static final String LOG_ID = "audiolat";
 
   // default values
   int mSampleRate = 16000;
@@ -27,7 +27,7 @@ public class MainActivity extends AppCompatActivity {
   int mEndSignal = R.raw.chirp2_16k_300ms;
 
   static {
-    System.loadLibrary("latencycheck");
+    System.loadLibrary("audiolat");
   }
 
   public native int runAAudio(TestSettings settings);
@@ -45,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     setContentView(R.layout.activity_main);
-    String file_path = "/sdcard/lc_capture";
+    String file_path = "/sdcard/audiolat";
 
     android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
 

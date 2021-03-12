@@ -1,4 +1,4 @@
-package com.facebook.latencycheck;
+package com.facebook.audiolat;
 
 import java.nio.ByteBuffer;
 
