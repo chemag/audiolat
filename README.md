@@ -140,44 +140,53 @@ Then, run the analysis in the wav file:
 $ ./scripts/find_pulses.py ./audio/begin_signal.wav ./audio/chirp2_16k_300ms.wav -i audiolat_chirp2_16k_300ms.raw.wav -sr 16000 -t 20
 ** Check for ./audio/begin_signal.wav
 calc, dist data len = 255038, template len = 32
-Append: 22644 @ 1.42 s, cc: 49
+Append: 11761 @ 0.74 s, cc: 44
 Append: 32606 @ 2.04 s, cc: 99
 Append: 64606 @ 4.04 s, cc: 99
-Append: 86505 @ 5.41 s, cc: 26
+Append: 84515 @ 5.28 s, cc: 53
 Append: 96926 @ 6.06 s, cc: 99
 Append: 128992 @ 8.06 s, cc: 99
 Append: 161566 @ 10.1 s, cc: 99
-Append: 183081 @ 11.44 s, cc: 42
+Append: 168264 @ 10.52 s, cc: 23
 Append: 193566 @ 12.1 s, cc: 99
 Append: 225886 @ 14.12 s, cc: 99
-Append: 251283 @ 15.71 s, cc: 44
+Append: 246443 @ 15.4 s, cc: 40
 ** Check for ./audio/chirp2_16k_300ms.wav
 calc, dist data len = 255038, template len = 4800
-Append: 34730 @ 2.17 s, cc: 39
-Append: 67050 @ 4.19 s, cc: 42
-Append: 131378 @ 8.21 s, cc: 38
-Append: 195698 @ 12.23 s, cc: 42
+Append: 34763 @ 2.17 s, cc: 34
+Append: 66763 @ 4.17 s, cc: 28
+Append: 99173 @ 6.2 s, cc: 29
+Append: 195809 @ 12.24 s, cc: 25
+Append: 228136 @ 14.26 s, cc: 40
 ```
 
-The script has find 11 occurrences of the begin signal, and 4 occurrences of the end signal. If we match the closests ones, we find the following pairs:
+The script has found 11 occurrences of the begin signal, and 5 occurrences of the end signal. If we match the closests ones, we find the following pairs:
 
 | begin | end   | `audio_latency` |
 | ---   | ---   | ---             |
 |  2.04 |  2.17 | 130 ms          |
-|  4.04 |  4.19 | 150 ms          |
-|  8.06 |  8.21 | 150 ms          |
-| 12.1  | 12.23 | 130 ms          |
+|  4.04 |  4.17 | 130 ms          |
+|  6.06 |  6.2  | 140 ms          |
+| 12.1  | 12.24 | 140 ms          |
+| 14.12 | 14.26 | 140 ms          |
 
 Or an average of 140 ms audio latency.
 
+The analyzer also produces a csv file, which you can run using a script:
+
+```
+$ ./scripts/calc_delay.py audiolat_chirp2_16k_300ms.raw.wav.csv
+2.17 sec
+4.17 sec
+6.2 sec
+12.24 sec
+14.26 sec
+Average for audiolat_chirp2_16k_300ms.raw.wav.csv: 138.18 ms
+```
 
 As an alternative, we provide a script that does the whole process in a single commands:
 
 ```
 $ ./scripts/run_test.sh SAMPLERATE TEST_LENGTH_SECS REC_BUFFER_SIZE_SAMPLES PLAY_BUFFER_SIZE_SAMPLES
-$ ./scripts/calc_delay.py RECORDER_FILE.CSV
 ```
-
-
-
 
