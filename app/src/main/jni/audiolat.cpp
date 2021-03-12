@@ -40,8 +40,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   float time_sec = (float)written_frames / (float)cb_data->samplerate;
 
   if (stream == cb_data->record_stream) {
-    LOGD("record num_frames: %d time_sec: %.2f", num_frames, time_sec);
     // recording
+    LOGD("record num_frames: %d time_sec: %.2f", num_frames, time_sec);
     if (time_sec - last_ts > 2) {
       playing = true;
       LOGD("record write: input num_frames: %d", num_frames - cb_data->begin_signal_size);
@@ -63,6 +63,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       running = false;
     }
   } else {
+    // playout
     LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
     if (playing && playout_state == AAUDIO_STREAM_STATE_STARTED &&
         buffer_index + num_frames < cb_data->end_signal_size) {
