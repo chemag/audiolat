@@ -1,10 +1,10 @@
 # latencycheck
-Measure ear-to-mouth (output->input) delay in android systems.
+A tool to measure ear-to-mouth (output->input) delay in android systems.
 
 
 # 1. Introduction
 
-This app calculates the "audio latency" of an android device by performing an ear-to-mouth (e2m) experiment.
+This app calculates the "audio latency" of an android device by performing an ear-to-mouth (e2m) experiment. In an e2m experiments, we play a sound in the audio output (e.g. a speaker), and then look for it in the audio input (e.g. a mic). We measure the latency between the moment we played out the sound, and the moment we record it.
 
 
 # 2. Discussion
@@ -45,6 +45,7 @@ In the post-experiment analysis, we look for pairs of begin and end signals in t
 * android ndk
 * adb connection to the device being tested.
 * ffmpeg with decoding support for the codecs to be tested
+* [soundfile](https://pypi.org/project/SoundFile/) package for parsing the output files.
 
 
 ## 3.2. Operation
@@ -123,7 +124,7 @@ $ adb shell am start -n com.facebook.latencycheck/.MainActivity -e pbs 512
 Run the command. You should hear some chirps (a signal of continuously increasing frequency). Wait until you hear no more chirps (around the test length, or 15 seconds by default).
 
 
-(4) Analyze result
+(4) Analyze results
 
 The recorded file can be found in `/sdcard/lc_capture*.raw`. First pull it
 and convert it to pcm s16 wav.
@@ -136,17 +137,46 @@ $ ffmpeg -f s16le -acodec pcm_s16le -ac 1 -ar 16000 -i lc_capture_chirp2_16k_300
 Then, run the analysis in the wav file:
 
 ```
-$ ./scripts/find_pulses.py lc_capture_chirp2_16k_300ms.raw.wav CHIRP_SAMPLERATE -i RECORDER_FILE -sr SAMPLE_RATE -t 20
-'-t 20' will trigger on a badly damaged signal.
+$ ./scripts/find_pulses.py ./audio/begin_signal.wav ./audio/chirp2_16k_300ms.wav -i lc_capture_chirp2_16k_300ms.raw.wav -sr 16000 -t 20
+** Check for ./audio/begin_signal.wav
+calc, dist data len = 255038, template len = 32
+Append: 22644 @ 1.42 s, cc: 49
+Append: 32606 @ 2.04 s, cc: 99
+Append: 64606 @ 4.04 s, cc: 99
+Append: 86505 @ 5.41 s, cc: 26
+Append: 96926 @ 6.06 s, cc: 99
+Append: 128992 @ 8.06 s, cc: 99
+Append: 161566 @ 10.1 s, cc: 99
+Append: 183081 @ 11.44 s, cc: 42
+Append: 193566 @ 12.1 s, cc: 99
+Append: 225886 @ 14.12 s, cc: 99
+Append: 251283 @ 15.71 s, cc: 44
+** Check for ./audio/chirp2_16k_300ms.wav
+calc, dist data len = 255038, template len = 4800
+Append: 34730 @ 2.17 s, cc: 39
+Append: 67050 @ 4.19 s, cc: 42
+Append: 131378 @ 8.21 s, cc: 38
+Append: 195698 @ 12.23 s, cc: 42
+```
 
-or
+The script has find 11 occurrences of the begin signal, and 4 occurrences of the end signal. If we match the closests ones, we find the following pairs:
 
-* run the bash script:
-> $ run_test.sh SAMPLERATE TEST_LENGTH_SECS REC_BUFFER_SIZE_SAMPLES PLAY_BUFFER_SIZE_SAMPLES
+|begin |end |`audio_latency` |
+|--- |--- |--- |--- |--- |
+|2.04 |2.17 |130 ms |
+|4.04 |4.19 |150 ms |
+|8.06 |8.21 |150 ms |
+|12.1 |12.23 |130 ms |
 
-Finally
-* Run the output csv file from previous step:
-> $ python3 calc_delay.py RECORDER_FILE.CSV
+Or an average of 140 ms audio latency.
+
+
+As an alternative, we provide a script that does the whole process in a single commands:
+
+```
+$ ./scripts/run_test.sh SAMPLERATE TEST_LENGTH_SECS REC_BUFFER_SIZE_SAMPLES PLAY_BUFFER_SIZE_SAMPLES
+$ ./scripts/calc_delay.py RECORDER_FILE.CSV
+```
 
 
 
