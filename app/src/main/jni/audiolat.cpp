@@ -31,7 +31,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
                                            int32_t num_frames) {
   static int written_frames = 0;
   static int buffer_index = 0;
-  static bool playing = false;
+  static bool playout_must_play_end_signal = false;
   static float last_ts = 0;
 
   struct callback_data *cb_data = (struct callback_data *)userData;
@@ -43,7 +43,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     // recording
     LOGD("record num_frames: %d time_sec: %.2f", num_frames, time_sec);
     if (time_sec - last_ts > 2) {
-      playing = true;
+      playout_must_play_end_signal = true;
       LOGD("record write: input num_frames: %d", num_frames - cb_data->begin_signal_size);
       fwrite((int16_t *)audioData, sizeof(int16_t),
              (size_t)num_frames - cb_data->begin_signal_size, cb_data->output_file_descriptor);
@@ -65,7 +65,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   } else {
     // playout
     LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
-    if (playing && playout_state == AAUDIO_STREAM_STATE_STARTED &&
+    if (playout_must_play_end_signal &&
+        playout_state == AAUDIO_STREAM_STATE_STARTED &&
         buffer_index + num_frames < cb_data->end_signal_size) {
       // add end signal
       LOGD("playout source: end num_frames: %d", num_frames);
@@ -76,7 +77,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       // add silence
       LOGD("playout source: silence num_frames: %d", num_frames);
       memset(audioData, 0, sizeof(int16_t) * num_frames);
-      playing = false;
+      playout_must_play_end_signal = false;
     }
   }
 
