@@ -67,16 +67,15 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
     if (playing && playout_state == AAUDIO_STREAM_STATE_STARTED &&
         buffer_index + num_frames < cb_data->end_signal_size) {
+      // add end signal
       LOGD("playout source: end num_frames: %d", num_frames);
       memcpy(audioData, cb_data->end_signal + buffer_index,
              sizeof(int16_t) * num_frames);
       buffer_index += num_frames;
     } else {
+      // add silence
       LOGD("playout source: silence num_frames: %d", num_frames);
-      int16_t *zeros = (int16_t *)malloc(sizeof(int16_t) * num_frames);
-      memset(zeros, 0, sizeof(int16_t) * num_frames);
-      memcpy(audioData, zeros, sizeof(int16_t) * num_frames);
-      free(zeros);
+      memset(audioData, 0, sizeof(int16_t) * num_frames);
       playing = false;
     }
   }
