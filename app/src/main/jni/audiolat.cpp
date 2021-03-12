@@ -22,6 +22,8 @@ struct callback_data {
   int end_signal_size;
   int16_t *begin_signal;
   int begin_signal_size;
+  int16_t *zeros;
+  int zeros_size;
   int samplerate;
   int timeout;
 };
@@ -32,8 +34,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   static int written_frames = 0;
   static int play_buffer_index = 0;
   static int rec_buffer_index = 0;
-  static bool playing = false;
   static float last_ts = 0;
+
 
   struct callback_data *cb_data = (struct callback_data *)userData;
   aaudio_stream_state_t playout_state =
@@ -44,16 +46,25 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     LOGD("record num_frames: %d time_sec: %.2f", num_frames, time_sec);
     // recording
     if (time_sec - last_ts > 2 || rec_buffer_index > 0) {
-      playing = true;
-      LOGD("record write begin signal: input num_frames: %d", num_frames - cb_data->begin_signal_size);
-      fwrite((int16_t *)audioData, sizeof(int16_t),
-             (size_t)num_frames - cb_data->begin_signal_size, cb_data->output_file_descriptor);\
-      size_t size = (num_frames >  cb_data->begin_signal_size - rec_buffer_index)?
+      size_t signal_size = (num_frames >  cb_data->begin_signal_size - rec_buffer_index)?
                             cb_data->begin_signal_size - rec_buffer_index: num_frames;
 
-      fwrite(cb_data->begin_signal + rec_buffer_index, size,
-             sizeof(int16_t), cb_data->output_file_descriptor);
-      rec_buffer_index += size;
+      LOGD("record write: begin signal num_frames: %d", num_frames);
+      if (rec_buffer_index > 0) {
+        //Write tail
+        fwrite(cb_data->begin_signal + rec_buffer_index, signal_size,
+            sizeof(int16_t), cb_data->output_file_descriptor);
+        fwrite((int16_t *)audioData, sizeof(int16_t),
+            (size_t)num_frames - signal_size, cb_data->output_file_descriptor);
+      } else {
+        //Write the beginning of the signal, the recorded data to be written could be 0
+        fwrite((int16_t *)audioData, sizeof(int16_t),
+            (size_t)num_frames - signal_size, cb_data->output_file_descriptor);
+        fwrite(cb_data->begin_signal + rec_buffer_index, signal_size,
+            sizeof(int16_t), cb_data->output_file_descriptor);
+      }
+
+      rec_buffer_index += signal_size;
       if (rec_buffer_index >= cb_data->begin_signal_size) {
         rec_buffer_index = 0;
       }
@@ -68,18 +79,32 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       running = false;
     }
   } else {
-    if (playing && playout_state == AAUDIO_STREAM_STATE_STARTED &&
-        play_buffer_index + num_frames < cb_data->end_signal_size) {
-      LOGD("playout source: end num_frames: %d", num_frames);
+    if (num_frames > cb_data->zeros_size) {
+      if (cb_data->zeros) {
+         free(cb_data->zeros);
+      }
+      cb_data->zeros = (int16_t *)malloc(sizeof(int16_t) * num_frames);
+      cb_data->zeros_size = num_frames;
+      memset(cb_data->zeros, 0, sizeof(int16_t) * num_frames);
+    }
+
+    if (playout_state == AAUDIO_STREAM_STATE_STARTED &&
+        cb_data->end_signal_size - play_buffer_index > 0) {
+      size_t signal_size = (num_frames >  cb_data->end_signal_size - play_buffer_index)?
+                  cb_data->end_signal_size - play_buffer_index: num_frames;
+
+      LOGD("playout source: num_frames: %d,buffer index = %d", num_frames, play_buffer_index);
       memcpy(audioData, cb_data->end_signal + play_buffer_index,
-             sizeof(int16_t) * num_frames);
-      play_buffer_index += num_frames;
+             sizeof(int16_t) * signal_size);
+      play_buffer_index += signal_size;
+
+      int rem = num_frames - signal_size;
+      // if more space is available, write silence
+      if (rem > 0) {
+         memcpy(audioData, cb_data->zeros, sizeof(int16_t) * rem);
+      }
     } else {
-      int16_t *zeros = (int16_t *)malloc(sizeof(int16_t) * num_frames);
-      memset(zeros, 0, sizeof(int16_t) * num_frames);
-      memcpy(audioData, zeros, sizeof(int16_t) * num_frames);
-      free(zeros);
-      playing = false;
+      memcpy(audioData, cb_data->zeros, sizeof(int16_t) * num_frames);
     }
   }
 
@@ -284,5 +309,8 @@ cleanup:
   if (record_stream) AAudioStream_close(record_stream);
   if (playout_builder) AAudioStreamBuilder_delete(playout_builder);
   if (record_builder) AAudioStreamBuilder_delete(record_builder);
+  if (cb_data.zeros) {
+       free(cb_data.zeros);
+  }
   return 0;
 }
