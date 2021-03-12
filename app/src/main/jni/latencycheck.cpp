@@ -118,12 +118,12 @@ Java_com_facebook_latencycheck_MainActivity_runAAudio(JNIEnv *env,
                                                       jobject /* this */,
                                                       jobject settings) {
   aaudio_result_t result;
-  AAudioStream *playout_stream = NULL;
-  AAudioStream *record_stream = NULL;
-  AAudioStreamBuilder *playout_builder = NULL;
-  AAudioStreamBuilder *record_builder = NULL;
-  int16_t *end_signal_buffer = NULL;
-  int16_t *begin_signal_buffer = NULL;
+  AAudioStream *playout_stream = nullptr;
+  AAudioStream *record_stream = nullptr;
+  AAudioStreamBuilder *playout_builder = nullptr;
+  AAudioStreamBuilder *record_builder = nullptr;
+  int16_t *end_signal_buffer = nullptr;
+  int16_t *begin_signal_buffer = nullptr;
 
   // unpack the test utils
   jclass cSettings = env->GetObjectClass(settings);
@@ -159,7 +159,7 @@ Java_com_facebook_latencycheck_MainActivity_runAAudio(JNIEnv *env,
   const char *output_file_name = env->GetStringUTFChars(output_file_path, 0);
   LOGD("Open file: %s", output_file_name);
   FILE *output_file_descriptor = fopen(output_file_name, "wb");
-  if (output_file_descriptor == NULL) {
+  if (output_file_descriptor == nullptr) {
     LOGD("Failed to open file");
     goto cleanup;
   }
