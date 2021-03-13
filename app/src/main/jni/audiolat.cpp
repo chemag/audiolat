@@ -30,8 +30,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
                                            void *audioData,
                                            int32_t num_frames) {
   static int written_frames = 0;
-  static int playout_buffer_offset = 0;
-  static bool playout_must_play_end_signal = false;
+  static int playout_num_frames_remaining = 0;
   static int record_num_frames_remaining = 0;
   static float last_ts = 0;
 
@@ -47,7 +46,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     if (time_sec - last_ts > 2) {
       // experiment start: we need, as soon as possible, to:
       // 1. play out the end signal
-      playout_must_play_end_signal = true;
+      playout_num_frames_remaining = cb_data->end_signal_size;
       // 2. record the begin signal
       record_num_frames_remaining = cb_data->begin_signal_size;
     }
@@ -81,7 +80,6 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       fwrite(((int16_t *)audioData) + record_buffer_offset, sizeof(int16_t),
              (size_t)num_frames_to_write, cb_data->output_file_descriptor);
       num_frames -= num_frames_to_write;
-      playout_buffer_offset = 0;
       last_ts = time_sec;
     }
     if (record_num_frames_remaining == cb_data->begin_signal_size) {
@@ -107,19 +105,33 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   } else {
     // playout
     LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
-    if (playout_must_play_end_signal &&
-        playout_state == AAUDIO_STREAM_STATE_STARTED &&
-        (playout_buffer_offset + num_frames) < cb_data->end_signal_size) {
-      // play end signal
+    int playout_buffer_offset = 0;
+    if ((playout_num_frames_remaining > 0) &&
+        (playout_state == AAUDIO_STREAM_STATE_STARTED)) {
+      // we are in the middle of playing the end signal:
+      // Let's write it on the left side
+      // +--------------------------------+
+      // |EEEEEEEE                        |
+      // +--------------------------------+
       LOGD("playout source: end num_frames: %d", num_frames);
-      memcpy(audioData, cb_data->end_signal + playout_buffer_offset,
-             sizeof(int16_t) * num_frames);
-      playout_buffer_offset += num_frames;
-    } else {
-      // play silence
+      int num_frames_to_write = std::min(num_frames, playout_num_frames_remaining);
+      int end_signal_offset = cb_data->end_signal_size - playout_num_frames_remaining;
+      memcpy(audioData, cb_data->end_signal + end_signal_offset,
+             sizeof(int16_t) * num_frames_to_write);
+      num_frames -= num_frames_to_write;
+      playout_num_frames_remaining -= num_frames_to_write;
+      playout_buffer_offset += num_frames_to_write;
+    }
+    if (num_frames > 0) {
+      // we are out of signal: play out silence
+      // Let's write it on the right side
+      // +--------------------------------+
+      // |        SSSSSSSSSSSSSSSSSSSSSSSS|
+      // +--------------------------------+
       LOGD("playout source: silence num_frames: %d", num_frames);
-      memset(audioData, 0, sizeof(int16_t) * num_frames);
-      playout_must_play_end_signal = false;
+      memset((void *)(((int16_t *)audioData) + playout_buffer_offset),
+             0, sizeof(int16_t) * num_frames);
+      playout_num_frames_remaining = 0;
     }
   }
 
