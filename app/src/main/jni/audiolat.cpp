@@ -138,8 +138,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
 
-
-void log_current_settings(AAudioStream *playout_stream, AAudioStream *record_stream) {
+void log_current_settings(AAudioStream *playout_stream,
+                          AAudioStream *record_stream) {
   // print current settings
   int playout_frames_per_burst = AAudioStream_getFramesPerBurst(playout_stream);
   int playout_buffer_capacity =
@@ -165,7 +165,6 @@ void log_current_settings(AAudioStream *playout_stream, AAudioStream *record_str
   LOGD("record performance_mode: %d",
        AAudioStream_getPerformanceMode(record_stream));
 }
-
 
 // main experiment function
 extern "C" JNIEXPORT jint JNICALL
@@ -242,7 +241,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   AAudioStreamBuilder_setDeviceId(playout_builder, AAUDIO_UNSPECIFIED);
   AAudioStreamBuilder_setDirection(playout_builder, AAUDIO_DIRECTION_OUTPUT);
   // AAUDIO_SHARING_MODE_EXCLUSIVE no available
-  AAudioStreamBuilder_setSharingMode(playout_builder, AAUDIO_SHARING_MODE_SHARED);
+  AAudioStreamBuilder_setSharingMode(playout_builder,
+                                     AAUDIO_SHARING_MODE_SHARED);
   AAudioStreamBuilder_setSampleRate(playout_builder, sample_rate);
   AAudioStreamBuilder_setChannelCount(playout_builder, 1);
   AAudioStreamBuilder_setFormat(playout_builder, AAUDIO_FORMAT_PCM_I16);
@@ -261,7 +261,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   AAudioStreamBuilder_setDeviceId(record_builder, device_id);
   AAudioStreamBuilder_setDirection(record_builder, AAUDIO_DIRECTION_INPUT);
   // AAUDIO_SHARING_MODE_EXCLUSIVE no available
-  AAudioStreamBuilder_setSharingMode(record_builder, AAUDIO_SHARING_MODE_SHARED);
+  AAudioStreamBuilder_setSharingMode(record_builder,
+                                     AAUDIO_SHARING_MODE_SHARED);
   AAudioStreamBuilder_setSampleRate(record_builder, sample_rate);
   AAudioStreamBuilder_setChannelCount(record_builder, 1);
   AAudioStreamBuilder_setFormat(record_builder, AAUDIO_FORMAT_PCM_I16);
