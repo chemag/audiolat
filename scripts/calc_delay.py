@@ -5,43 +5,60 @@ import numpy as np
 import pandas as pd
 
 
-def find_pairs(data):
-    files = pd.unique(data['reference'])
+# minimum full audio latency distance
+MIN_DIST_SEC = 0.002
 
-    # The one with most hits is the signal
-    signal = None
+
+def find_pairs(data, debug=0):
+
+    # The one with most hits is the "begin" signal
+    begin_filename = None
     max_len = 0
-    for fl in files:
-        ref_len = len(data.loc[data['reference'] == fl])
+    for signal_filename in pd.unique(data['reference']):
+        ref_len = len(data.loc[data['reference'] == signal_filename])
         if ref_len > max_len:
             max_len = ref_len
-            signal = fl
+            begin_filename = signal_filename
 
     matches = []
-    input_files = pd.unique(data['input_file'])
 
-    for fl in input_files:
-        signals = data.loc[(data['input_file'] == fl) &
-                           (data['reference'] == signal)]
-        impulses = data.loc[(data['input_file'] == fl) &
-                            (data['reference'] != signal)]
+    begin_signals = data.loc[data['reference'] == begin_filename]
+    end_signals = data.loc[data['reference'] != begin_filename]
 
-        for play_imp in impulses.iterrows():
-            closest = None
-            min_dist = 1
-            time = play_imp[1]['time']
-            print(f'{round(time,2)} sec')
-            for sig_imp in signals.iterrows():
-                dist = time - sig_imp[1]['time']
-                if dist > 0 and dist < min_dist:
-                    min_dist = dist
-                    closest = sig_imp
-            if closest is not None:
-                matches.append([time, min_dist, fl])
-    labels = ['time', 'delay', 'file']
+    for end_signal in end_signals.iterrows():
+        closest_begin_signal = None
+        min_dist_sec = 1
+        time = end_signal[1]['time']
+        if debug > 0:
+            print(f'end_time_sec: {round(time,3)}')
+        for begin_signal in begin_signals.iterrows():
+            dist_sec = time - begin_signal[1]['time']
+            if dist_sec > MIN_DIST_SEC and dist_sec < min_dist_sec:
+                min_dist_sec = dist_sec
+                closest_begin_signal = begin_signal
+        if closest_begin_signal is not None:
+            matches.append([time, min_dist_sec])
+
+    labels = ['timestamp', 'latency']
     result = pd.DataFrame.from_records(
         matches, columns=labels, coerce_float=True)
     return result
+
+
+def parse_input_file(filename):
+    # 135263,16.907875,47,audio.wav
+    data = pd.read_csv(filename)
+    if data is None:
+        print('warning: No data on {filename}')
+        return None, None, None
+    pairs = find_pairs(data)
+    samples = len(pairs['latency'])
+    if samples == 0:
+        print('warning: No data on {filename}')
+        return None, None, 0
+    average_sec = np.mean(pairs['latency'])
+    stddev_sec = np.std(pairs['latency'])
+    return average_sec, stddev_sec, samples
 
 
 def main():
@@ -51,28 +68,12 @@ def main():
     parser.add_argument('-l', '--label', default='capt')
     options = parser.parse_args()
 
-    accum_data = None
-    for fl in options.files:
-        # 135263,16.907875,47,audio.wav
-
-        data = pd.read_csv(fl)
-        if data is None:
-            exit(0)
-
-        data['input_file'] = fl
-        if accum_data is None:
-            accum_data = data
-        else:
-            accum_data = accum_data.append(data)
-
-    data = find_pairs(accum_data)
-
-    input_files = pd.unique(data['file'])
-
-    for fl in input_files:
-        average = round(
-            np.mean(data.loc[data['file'] == fl]['delay'] * 1000), 2)
-        print(f'Average for {fl}: {average} ms')
+    for filename in options.files:
+        average_sec, stddev_sec, samples = parse_input_file(filename)
+        if average_sec is None:
+            continue
+        print(f'filename: {filename} average_sec: {average_sec} '
+              f'stddev_sec: {stddev_sec} samples: {samples}')
 
 
 if __name__ == '__main__':
