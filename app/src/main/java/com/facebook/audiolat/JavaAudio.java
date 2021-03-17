@@ -161,8 +161,8 @@ public class JavaAudio {
                 rec_buffer_index += signal_size;
                 last_ts = time_sec;
 
-                Log.d(LOG_ID,
-                    String.format(String.format("rec_buffer_index: %d", rec_buffer_index)));
+                Log.d(
+                    LOG_ID, String.format(String.format("rec_buffer_index: %d", rec_buffer_index)));
               } else {
                 Log.d(LOG_ID, "Write normal data: " + read);
                 fos.write(audioData, 0, read);
