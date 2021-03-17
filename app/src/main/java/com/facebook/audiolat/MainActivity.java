@@ -27,6 +27,9 @@ public class MainActivity extends AppCompatActivity {
   String mSignal = "chirp";
   int mUsage = AudioAttributes.USAGE_UNKNOWN;
   int mTimeBetweenSignals = 2;
+  public String AAUDIO = "aaudio";
+  public String JAVAAUDIO = "javaaudio";
+  String mApi = AAUDIO;
 
   static {
     System.loadLibrary("audiolat");
@@ -83,6 +86,9 @@ public class MainActivity extends AppCompatActivity {
           String tbs = extras.getString("tbs");
           mTimeBetweenSignals = Integer.parseInt(tbs);
         }
+        if (extras.containsKey("api")) {
+          mApi = extras.getString("api");
+        }
       }
       // choose end signal file
       String filePath = setupSignalSource();
@@ -124,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
           settings.playoutBufferSize = mPlayoutBufferSize;
           settings.usage = mUsage;
           settings.timeBetweenSignals = mTimeBetweenSignals;
-          runExperiment(settings);
+          runExperiment(mApi, settings);
         }
       });
       t.start();
@@ -198,7 +204,7 @@ public class MainActivity extends AppCompatActivity {
     return nonGrantedPerms.toArray(new String[nonGrantedPerms.size()]);
   }
 
-  private void runExperiment(TestSettings settings) {
+  private void runExperiment(String api, TestSettings settings) {
     AudioManager aman = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
 
@@ -220,9 +226,15 @@ public class MainActivity extends AppCompatActivity {
     AudioDeviceInfo info = adevs[0]; // Take the first (and best)
     settings.deviceId = info.getId();
 
-    Log.d(LOG_ID, "Calling native runAAudio");
+    if (api.equals(AAUDIO)) {
+      Log.d(LOG_ID, "Calling native (AAudio) API");
+      int status = runAAudio(settings);
+    } else if (api.equals(JAVAAUDIO)) {
+      Log.d(LOG_ID, "Calling java (JavaAudio) API");
+      JavaAudio javaAudio = new JavaAudio();
+      javaAudio.runJavaAudio(this, settings);
+    }
 
-    int status = runAAudio(settings);
     Log.d(LOG_ID, "Done");
     System.exit(0);
   }
