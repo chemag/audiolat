@@ -61,12 +61,12 @@ public class MainActivity extends AppCompatActivity {
           mTimeout = Integer.parseInt(timeout);
         }
         if (extras.containsKey("rbs")) {
-          String timeout = extras.getString("rbs");
-          mRecordBufferSize = Integer.parseInt(timeout);
+          String rbs = extras.getString("rbs");
+          mRecordBufferSize = Integer.parseInt(rbs);
         }
         if (extras.containsKey("pbs")) {
-          String timeout = extras.getString("pbs");
-          mPlayoutBufferSize = Integer.parseInt(timeout);
+          String pbs = extras.getString("pbs");
+          mPlayoutBufferSize = Integer.parseInt(pbs);
         }
         if (extras.containsKey("signal")) {
           mSignal = extras.getString("signal");
