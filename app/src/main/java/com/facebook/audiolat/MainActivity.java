@@ -23,6 +23,7 @@ public class MainActivity extends AppCompatActivity {
   int mPlayoutBufferSize = 32;
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
+  String mSignal = "chirp";
 
   static {
     System.loadLibrary("audiolat");
@@ -43,7 +44,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     setContentView(R.layout.activity_main);
-    String file_path = "/sdcard/audiolat";
 
     android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
 
@@ -68,24 +68,12 @@ public class MainActivity extends AppCompatActivity {
           String timeout = extras.getString("pbs");
           mPlayoutBufferSize = Integer.parseInt(timeout);
         }
+        if (extras.containsKey("signal")) {
+          mSignal = extras.getString("signal");
+        }
       }
       // choose end signal file
-      switch (mSampleRate) {
-        case 48000:
-          mEndSignal = R.raw.chirp2_48k_300ms;
-          file_path += "_chirp2_48k_300ms.raw";
-          break;
-        case 16000:
-          mEndSignal = R.raw.chirp2_16k_300ms;
-          file_path += "_chirp2_16k_300ms.raw";
-          break;
-        case 8000:
-          mEndSignal = R.raw.chirp2_8k_300ms;
-          file_path += "_chirp2_8k_300ms.raw";
-          break;
-        default:
-          Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
-      }
+      String filePath = setupSignalSource();
 
       // read the end signal into endSignal
       InputStream is = this.getResources().openRawResource(mEndSignal);
@@ -107,12 +95,12 @@ public class MainActivity extends AppCompatActivity {
       beginSignal.put(beginSignalBuffer);
 
       // begin a thread that implements the experiment
-      final String rec_file_path = file_path;
+      final String recFilePath = filePath;
       Thread t = new Thread(new Runnable() {
         @Override
         public void run() {
           runAAudio(endSignal, endSignalBuffer.length / 2 /* 16 bit */, beginSignal,
-              beginSignalBuffer.length / 2 /* 16 bit */, rec_file_path);
+              beginSignalBuffer.length / 2 /* 16 bit */, recFilePath);
         }
       });
       t.start();
@@ -120,6 +108,47 @@ public class MainActivity extends AppCompatActivity {
     } catch (IOException e) {
       e.printStackTrace();
     }
+  }
+
+  private String setupSignalSource() {
+    String filePath = "/sdcard/audiolat";
+    if (mSignal.equals("chirp")) {
+      // choose end signal file
+      switch (mSampleRate) {
+        case 48000:
+          mEndSignal = R.raw.chirp2_48k_300ms;
+          filePath += "_chirp2_48k_300ms.raw";
+          break;
+        case 16000:
+          mEndSignal = R.raw.chirp2_16k_300ms;
+          filePath += "_chirp2_16k_300ms.raw";
+          break;
+        case 8000:
+          mEndSignal = R.raw.chirp2_8k_300ms;
+          filePath += "_chirp2_8k_300ms.raw";
+          break;
+        default:
+          Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
+      }
+    } else if (mSignal.equals("noise")) {
+      switch (mSampleRate) {
+        case 48000:
+          mEndSignal = R.raw.bp_noise2_48k_300ms;
+          filePath += "_bp_noise2_48k_300ms.raw";
+          break;
+        case 16000:
+          mEndSignal = R.raw.bp_noise2_16k_300ms;
+          filePath += "_bp_noise2_16k_300ms.raw";
+          break;
+        case 8000:
+          mEndSignal = R.raw.bp_noise2_8k_300ms;
+          filePath += "_bp_noise2_8k_300ms.raw";
+          break;
+        default:
+          Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
+      }
+    }
+    return filePath;
   }
 
   public static String[] retrieveNotGrantedPermissions(Context context) {

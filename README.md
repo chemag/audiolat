@@ -114,6 +114,7 @@ where the possible parameters are:
 * `-e t <TEST_LENGTH_SECS>`: duration of the length (in seconds). Default value is 15.
 * `-e rbs <REC_BUFFER_SIZE_SAMPLES>`: size of the recording (mic) buffer (in frames). Default is 32.
 * `-e pbs <PLAY_BUFFER_SIZE_SAMPLES>`: size of the playout (speaker) buffer (in frames). Default is 32.
+* `-e signal <SIGNAL>`: which signal to use as end signal. Can be "chirp" or "noise". Default is "chirp".
 
 For example, to use 512 frames as the size of the playout buffer
 
