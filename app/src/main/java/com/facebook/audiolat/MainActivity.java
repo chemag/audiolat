@@ -2,6 +2,7 @@ package com.facebook.audiolat;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.os.Bundle;
@@ -24,6 +25,7 @@ public class MainActivity extends AppCompatActivity {
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
   String mSignal = "chirp";
+  int mUsage = AudioAttributes.USAGE_UNKNOWN;
 
   static {
     System.loadLibrary("audiolat");
@@ -70,6 +72,11 @@ public class MainActivity extends AppCompatActivity {
         }
         if (extras.containsKey("signal")) {
           mSignal = extras.getString("signal");
+        }
+        if (extras.containsKey("usage")) {
+          String usage = extras.getString("usage");
+          Log.d(LOG_ID, "Set usage" + usage);
+          mUsage = Integer.parseInt(usage);
         }
       }
       // choose end signal file
@@ -208,6 +215,7 @@ public class MainActivity extends AppCompatActivity {
     settings.sampleRate = mSampleRate;
     settings.recordBufferSize = mRecordBufferSize;
     settings.playoutBufferSize = mPlayoutBufferSize;
+    settings.usage = mUsage;
 
     int status = runAAudio(settings);
     Log.d(LOG_ID, "Done");

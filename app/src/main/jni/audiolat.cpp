@@ -215,6 +215,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   jint playout_buffer_size = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "recordBufferSize", "I");
   jint record_buffer_size = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "usage", "I");
+  jint usage = env->GetIntField(settings, fid);
 
   running = true;
 
@@ -250,8 +252,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     LOGD("Failed to create playout stream");
     goto cleanup;
   }
-  // more of this later...device_id);
   AAudioStreamBuilder_setDeviceId(playout_builder, AAUDIO_UNSPECIFIED);
+  AAudioStreamBuilder_setUsage(playout_builder, usage);
   AAudioStreamBuilder_setDirection(playout_builder, AAUDIO_DIRECTION_OUTPUT);
   // AAUDIO_SHARING_MODE_EXCLUSIVE no available
   AAudioStreamBuilder_setSharingMode(playout_builder,

@@ -14,4 +14,5 @@ public class TestSettings {
   int playoutBufferSize;
   int recordBufferSize;
   String outputFilePath;
+  int usage;
 }
