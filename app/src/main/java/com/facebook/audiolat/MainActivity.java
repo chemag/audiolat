@@ -111,8 +111,20 @@ public class MainActivity extends AppCompatActivity {
       Thread t = new Thread(new Runnable() {
         @Override
         public void run() {
-          runAAudio(endSignal, endSignalBuffer.length / 2 /* 16 bit */, beginSignal,
-              beginSignalBuffer.length / 2 /* 16 bit */, recFilePath);
+          // pack all the info together into settings
+          TestSettings settings = new TestSettings();
+          settings.endSignal = endSignal;
+          settings.endSignalSize = endSignalSize / 2; /* 16 bits */
+          settings.beginSignal = beginSignal;
+          settings.beginSignalSize = beginSignalSize / 2; /* 16 bits */
+          settings.timeout = mTimeout; // sec
+          settings.outputFilePath = recFilePath;
+          settings.sampleRate = mSampleRate;
+          settings.recordBufferSize = mRecordBufferSize;
+          settings.playoutBufferSize = mPlayoutBufferSize;
+          settings.usage = mUsage;
+          settings.timeBetweenSignals = mTimeBetweenSignals;
+          runExperiment(settings);
         }
       });
       t.start();
@@ -186,8 +198,7 @@ public class MainActivity extends AppCompatActivity {
     return nonGrantedPerms.toArray(new String[nonGrantedPerms.size()]);
   }
 
-  private void runAAudio(ByteBuffer endSignal, int endSignalSize, ByteBuffer beginSignal,
-      int beginSignalSize, String outputFilePath) {
+  private void runExperiment(TestSettings settings) {
     AudioManager aman = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
 
@@ -206,22 +217,10 @@ public class MainActivity extends AppCompatActivity {
       }
     }
 
-    // pack all the info together into settings
     AudioDeviceInfo info = adevs[0]; // Take the first (and best)
-    Log.d(LOG_ID, "Calling native runAAudio");
-    TestSettings settings = new TestSettings();
     settings.deviceId = info.getId();
-    settings.endSignal = endSignal;
-    settings.endSignalSize = endSignalSize;
-    settings.beginSignal = beginSignal;
-    settings.beginSignalSize = beginSignalSize;
-    settings.timeout = mTimeout; // sec
-    settings.outputFilePath = outputFilePath;
-    settings.sampleRate = mSampleRate;
-    settings.recordBufferSize = mRecordBufferSize;
-    settings.playoutBufferSize = mPlayoutBufferSize;
-    settings.usage = mUsage;
-    settings.timeBetweenSignals = mTimeBetweenSignals;
+
+    Log.d(LOG_ID, "Calling native runAAudio");
 
     int status = runAAudio(settings);
     Log.d(LOG_ID, "Done");
