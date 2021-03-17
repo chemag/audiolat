@@ -118,6 +118,7 @@ where the possible parameters are:
 * `-e usage <USAGE>`: audio usage (per `AudioAttributes.USAGE_*` [values](https://developer.android.com/reference/android/media/AudioAttributes.Builder#setUsage(int))). Default is 0.
 * `-e tbs <SECONDS>`: time between signals (in seconds). Default is 2.
 * `-e api <API>`: select audio API. Options are "aaudio" and "javaaudio". Default is "aaudio".
+* `-e atpm <MODE>`: select AudioTrack performance mode in javamode. Options are "none" (0), "low-latency" (1), and "power-saving" (2) (per [this](https://developer.android.com/reference/android/media/AudioTrack#PERFORMANCE_MODE_LOW_LATENCY)). Default is "none".
 
 For example, to use 512 frames as the size of the playout buffer
 

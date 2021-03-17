@@ -30,6 +30,7 @@ public class MainActivity extends AppCompatActivity {
   public String AAUDIO = "aaudio";
   public String JAVAAUDIO = "javaaudio";
   String mApi = AAUDIO;
+  int mJavaaudioPerformanceMode = 0;
 
   static {
     System.loadLibrary("audiolat");
@@ -89,6 +90,10 @@ public class MainActivity extends AppCompatActivity {
         if (extras.containsKey("api")) {
           mApi = extras.getString("api");
         }
+        if (extras.containsKey("atpm")) {
+          String atpm = extras.getString("atpm");
+          mJavaaudioPerformanceMode = Integer.parseInt(atpm);
+        }
       }
       // choose end signal file
       String filePath = setupSignalSource();
@@ -130,6 +135,7 @@ public class MainActivity extends AppCompatActivity {
           settings.playoutBufferSize = mPlayoutBufferSize;
           settings.usage = mUsage;
           settings.timeBetweenSignals = mTimeBetweenSignals;
+          settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
           runExperiment(mApi, settings);
         }
       });

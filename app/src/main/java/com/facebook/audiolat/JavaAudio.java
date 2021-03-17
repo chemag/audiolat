@@ -55,6 +55,7 @@ public class JavaAudio {
                                 .build())
             .setTransferMode(AudioTrack.MODE_STATIC)
             .setBufferSizeInBytes(settings.endSignalSize)
+            .setPerformanceMode(settings.javaaudioPerformanceMode)
             .build();
 
     // create record object
