@@ -340,8 +340,6 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   AAudioStream_requestStop(record_stream);
   AAudioStream_requestStop(playout_stream);
 
-  struct stat file_info;
-  stat(output_file_name, &file_info);
   fclose(output_file_descriptor);
 
 cleanup:
