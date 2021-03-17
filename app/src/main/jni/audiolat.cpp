@@ -217,6 +217,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   jint record_buffer_size = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "usage", "I");
   jint usage = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "timeBetweenSignals", "I");
+  jint time_between_signals = env->GetIntField(settings, fid);
 
   running = true;
 
@@ -335,7 +337,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
 
   // wait until it is done
   while (running) {
-    sleep(2);
+    sleep(time_between_signals);
   }
 
   // cleanup

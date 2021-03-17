@@ -116,6 +116,7 @@ where the possible parameters are:
 * `-e pbs <PLAY_BUFFER_SIZE_SAMPLES>`: size of the playout (speaker) buffer (in frames). Default is 32.
 * `-e signal <SIGNAL>`: which signal to use as end signal. Can be "chirp" or "noise". Default is "chirp".
 * `-e usage <USAGE>`: audio usage (per `AudioAttributes.USAGE_*` [values](https://developer.android.com/reference/android/media/AudioAttributes.Builder#setUsage(int))). Default is 0.
+* `-e tbs <SECONDS>`: time between signals (in seconds). Default is 2.
 
 For example, to use 512 frames as the size of the playout buffer
 

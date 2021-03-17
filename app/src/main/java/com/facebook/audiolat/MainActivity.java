@@ -26,6 +26,7 @@ public class MainActivity extends AppCompatActivity {
   int mEndSignal = R.raw.chirp2_16k_300ms;
   String mSignal = "chirp";
   int mUsage = AudioAttributes.USAGE_UNKNOWN;
+  int mTimeBetweenSignals = 2;
 
   static {
     System.loadLibrary("audiolat");
@@ -77,6 +78,10 @@ public class MainActivity extends AppCompatActivity {
           String usage = extras.getString("usage");
           Log.d(LOG_ID, "Set usage" + usage);
           mUsage = Integer.parseInt(usage);
+        }
+        if (extras.containsKey("tbs")) {
+          String tbs = extras.getString("tbs");
+          mTimeBetweenSignals = Integer.parseInt(tbs);
         }
       }
       // choose end signal file
@@ -216,6 +221,7 @@ public class MainActivity extends AppCompatActivity {
     settings.recordBufferSize = mRecordBufferSize;
     settings.playoutBufferSize = mPlayoutBufferSize;
     settings.usage = mUsage;
+    settings.timeBetweenSignals = mTimeBetweenSignals;
 
     int status = runAAudio(settings);
     Log.d(LOG_ID, "Done");

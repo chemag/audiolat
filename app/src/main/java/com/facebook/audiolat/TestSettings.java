@@ -15,4 +15,5 @@ public class TestSettings {
   int recordBufferSize;
   String outputFilePath;
   int usage;
+  int timeBetweenSignals;
 }
