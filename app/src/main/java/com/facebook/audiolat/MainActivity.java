@@ -113,9 +113,8 @@ public class MainActivity extends AppCompatActivity {
       Thread t = new Thread(new Runnable() {
         @Override
         public void run() {
-          runAAudio(endSignal, endSignalBuffer.length / 2 /* 16 bit */,
-                    beginSignal, beginSignalBuffer.length / 2 /* 16 bit */,
-                    rec_file_path);
+          runAAudio(endSignal, endSignalBuffer.length / 2 /* 16 bit */, beginSignal,
+              beginSignalBuffer.length / 2 /* 16 bit */, rec_file_path);
         }
       });
       t.start();
@@ -148,8 +147,8 @@ public class MainActivity extends AppCompatActivity {
     return nonGrantedPerms.toArray(new String[nonGrantedPerms.size()]);
   }
 
-  private void runAAudio(ByteBuffer endSignal, int endSignalSize,
-      ByteBuffer beginSignal, int beginSignalSize, String outputFilePath) {
+  private void runAAudio(ByteBuffer endSignal, int endSignalSize, ByteBuffer beginSignal,
+      int beginSignalSize, String outputFilePath) {
     AudioManager aman = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
 
