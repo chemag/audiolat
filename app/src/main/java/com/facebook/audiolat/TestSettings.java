@@ -14,6 +14,7 @@ public class TestSettings {
   int playoutBufferSize;
   int recordBufferSize;
   String outputFilePath;
-  int timeBetweenSignals;
   int usage;
+  int timeBetweenSignals;
+  int javaaudioPerformanceMode;
 }

@@ -9,12 +9,10 @@ import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-
 
 public class MainActivity extends AppCompatActivity {
   public static final String LOG_ID = "audiolat";
@@ -26,11 +24,13 @@ public class MainActivity extends AppCompatActivity {
   int mPlayoutBufferSize = 32;
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
+  String mSignal = "chirp";
+  int mUsage = AudioAttributes.USAGE_UNKNOWN;
+  int mTimeBetweenSignals = 2;
   public String AAUDIO = "aaudio";
   public String JAVAAUDIO = "javaaudio";
   String mApi = AAUDIO;
-  String mSignal = "noise";
-  int mUsage = AudioAttributes.USAGE_UNKNOWN;
+  int mJavaaudioPerformanceMode = 0;
 
   static {
     System.loadLibrary("audiolat");
@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     setContentView(R.layout.activity_main);
-
+    String file_path = "/sdcard/audiolat";
 
     android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
 
@@ -76,9 +76,6 @@ public class MainActivity extends AppCompatActivity {
           String pbs = extras.getString("pbs");
           mPlayoutBufferSize = Integer.parseInt(pbs);
         }
-        if (extras.containsKey("api")) {
-          mApi = extras.getString("api");
-        }
         if (extras.containsKey("signal")) {
           mSignal = extras.getString("signal");
         }
@@ -87,7 +84,19 @@ public class MainActivity extends AppCompatActivity {
           Log.d(LOG_ID, "Set usage" + usage);
           mUsage = Integer.parseInt(usage);
         }
+        if (extras.containsKey("tbs")) {
+          String tbs = extras.getString("tbs");
+          mTimeBetweenSignals = Integer.parseInt(tbs);
+        }
+        if (extras.containsKey("api")) {
+          mApi = extras.getString("api");
+        }
+        if (extras.containsKey("atpm")) {
+          String atpm = extras.getString("atpm");
+          mJavaaudioPerformanceMode = Integer.parseInt(atpm);
+        }
       }
+      // choose end signal file
       String filePath = setupSignalSource();
 
       // read the end signal into endSignal
@@ -110,25 +119,25 @@ public class MainActivity extends AppCompatActivity {
       beginSignal.put(beginSignalBuffer);
 
       // begin a thread that implements the experiment
-      final String rec_file_path = filePath;
+      final String recFilePath = filePath;
       Thread t = new Thread(new Runnable() {
         @Override
         public void run() {
-
+          // pack all the info together into settings
           TestSettings settings = new TestSettings();
           settings.endSignal = endSignal;
-          settings.endSignalSize = endSignalBuffer.length / 2;
+          settings.endSignalSize = endSignalSize / 2; /* 16 bits */
           settings.beginSignal = beginSignal;
-          settings.beginSignalSize = beginSignalBuffer.length / 2;
+          settings.beginSignalSize = beginSignalSize / 2; /* 16 bits */
           settings.timeout = mTimeout; // sec
-          settings.outputFilePath = rec_file_path;
+          settings.outputFilePath = recFilePath;
           settings.sampleRate = mSampleRate;
           settings.recordBufferSize = mRecordBufferSize;
           settings.playoutBufferSize = mPlayoutBufferSize;
-          settings.timeBetweenSignals = 2;
           settings.usage = mUsage;
-
-          runRec(mApi, settings);
+          settings.timeBetweenSignals = mTimeBetweenSignals;
+          settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
+          runExperiment(mApi, settings);
         }
       });
       t.start();
@@ -139,21 +148,21 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private String setupSignalSource() {
-    String file_path = "/sdcard/audiolat";
+    String filePath = "/sdcard/audiolat";
     if (mSignal.equals("chirp")) {
       // choose end signal file
       switch (mSampleRate) {
         case 48000:
           mEndSignal = R.raw.chirp2_48k_300ms;
-          file_path += "_chirp2_48k_300ms.raw";
+          filePath += "_chirp2_48k_300ms.raw";
           break;
         case 16000:
           mEndSignal = R.raw.chirp2_16k_300ms;
-          file_path += "_chirp2_16k_300ms.raw";
+          filePath += "_chirp2_16k_300ms.raw";
           break;
         case 8000:
           mEndSignal = R.raw.chirp2_8k_300ms;
-          file_path += "_chirp2_8k_300ms.raw";
+          filePath += "_chirp2_8k_300ms.raw";
           break;
         default:
           Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
@@ -162,22 +171,21 @@ public class MainActivity extends AppCompatActivity {
       switch (mSampleRate) {
         case 48000:
           mEndSignal = R.raw.bp_noise2_48k_300ms;
-          file_path += "_bp_noise2_48k_300ms.raw";
+          filePath += "_bp_noise2_48k_300ms.raw";
           break;
         case 16000:
           mEndSignal = R.raw.bp_noise2_16k_300ms;
-          file_path += "_bp_noise2_16k_300ms.raw";
+          filePath += "_bp_noise2_16k_300ms.raw";
           break;
         case 8000:
           mEndSignal = R.raw.bp_noise2_8k_300ms;
-          file_path += "_bp_noise2_8k_300ms.raw";
+          filePath += "_bp_noise2_8k_300ms.raw";
           break;
         default:
           Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
       }
-    } 
-
-    return file_path;
+    }
+    return filePath;
   }
 
   public static String[] retrieveNotGrantedPermissions(Context context) {
@@ -203,7 +211,7 @@ public class MainActivity extends AppCompatActivity {
     return nonGrantedPerms.toArray(new String[nonGrantedPerms.size()]);
   }
 
-  private void runRec(String api, TestSettings settings) {
+  private void runExperiment(String api, TestSettings settings) {
     AudioManager aman = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
 
@@ -222,16 +230,18 @@ public class MainActivity extends AppCompatActivity {
       }
     }
 
-    // pack all the info together into settings
     AudioDeviceInfo info = adevs[0]; // Take the first (and best)
-
     settings.deviceId = info.getId();
+
     if (api.equals(AAUDIO)) {
+      Log.d(LOG_ID, "Calling native (AAudio) API");
       int status = runAAudio(settings);
     } else if (api.equals(JAVAAUDIO)) {
-      JavaRecord rec = new JavaRecord();
-      rec.record(this, settings);
+      Log.d(LOG_ID, "Calling java (JavaAudio) API");
+      JavaAudio javaAudio = new JavaAudio();
+      javaAudio.runJavaAudio(this, settings);
     }
+
     Log.d(LOG_ID, "Done");
     System.exit(0);
   }

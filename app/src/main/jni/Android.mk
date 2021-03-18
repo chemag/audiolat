@@ -5,7 +5,7 @@ LOCAL_LDFLAGS += -L$(LOCAL_PATH)/lib
 LOCAL_LDLIBS :=  -llog -laaudio
 
 LOCAL_MODULE    := libaudiolat
-LOCAL_SRC_FILES := audiolat.cpp
+LOCAL_SRC_FILES := aaudio.cpp
 
 LOCAL_C_INCLUDES := $(LOCAL_PATH)/include  \
 
