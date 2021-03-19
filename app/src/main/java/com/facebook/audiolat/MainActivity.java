@@ -5,10 +5,23 @@ import android.content.pm.PackageManager;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.media.midi.MidiDevice;
+import android.media.midi.MidiDeviceInfo;
+import android.media.midi.MidiManager;
+import android.media.midi.MidiOutputPort;
+import android.media.midi.MidiReceiver;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.CompoundButton;
+import android.widget.ListView;
+import android.widget.ToggleButton;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -16,7 +29,7 @@ import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
   public static final String LOG_ID = "audiolat";
-
+  Handler mHandler;
   // default values
   int mSampleRate = 16000;
   int mTimeout = 15;
@@ -31,12 +44,16 @@ public class MainActivity extends AppCompatActivity {
   public String JAVAAUDIO = "javaaudio";
   String mApi = AAUDIO;
   int mJavaaudioPerformanceMode = 0;
-
+  boolean mMidiMode = false;
+  ListView mDeviceListView;
+  ArrayAdapter<String> mMidiDevices;
+  MidiManager mMidiManager;
   static {
     System.loadLibrary("audiolat");
   }
 
   public native int runAAudio(TestSettings settings);
+  public native void midiSignal(long nanotime);
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -49,11 +66,6 @@ public class MainActivity extends AppCompatActivity {
       int REQUEST_ALL_PERMISSIONS = 0x4562;
       ActivityCompat.requestPermissions(this, permissions, REQUEST_ALL_PERMISSIONS);
     }
-
-    setContentView(R.layout.activity_main);
-    String file_path = "/sdcard/audiolat";
-
-    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
 
     try {
       // read CLI arguments
@@ -95,7 +107,21 @@ public class MainActivity extends AppCompatActivity {
           String atpm = extras.getString("atpm");
           mJavaaudioPerformanceMode = Integer.parseInt(atpm);
         }
+        if (extras.containsKey("midi")) {
+          mMidiMode = true;
+        } else {
+        }
       }
+
+      if (mMidiMode) {
+        setContentView(R.layout.activity_midi);
+      } else {
+        setContentView(R.layout.activity_main);
+      }
+      String file_path = "/sdcard/audiolat";
+
+      android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
+
       // choose end signal file
       String filePath = setupSignalSource();
 
@@ -120,31 +146,120 @@ public class MainActivity extends AppCompatActivity {
 
       // begin a thread that implements the experiment
       final String recFilePath = filePath;
-      Thread t = new Thread(new Runnable() {
-        @Override
-        public void run() {
-          // pack all the info together into settings
-          TestSettings settings = new TestSettings();
-          settings.endSignal = endSignal;
-          settings.endSignalSize = endSignalSize / 2; /* 16 bits */
-          settings.beginSignal = beginSignal;
-          settings.beginSignalSize = beginSignalSize / 2; /* 16 bits */
-          settings.timeout = mTimeout; // sec
-          settings.outputFilePath = recFilePath;
-          settings.sampleRate = mSampleRate;
-          settings.recordBufferSize = mRecordBufferSize;
-          settings.playoutBufferSize = mPlayoutBufferSize;
-          settings.usage = mUsage;
-          settings.timeBetweenSignals = mTimeBetweenSignals;
-          settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
-          runExperiment(mApi, settings);
-        }
-      });
-      t.start();
+      if (!mMidiMode) {
+        Thread t = new Thread(new Runnable() {
+          @Override
+          public void run() {
+            // pack all the info together into settings
+            TestSettings settings = new TestSettings();
+            settings.endSignal = endSignal;
+            settings.endSignalSize = endSignalSize / 2; /* 16 bits */
+            settings.beginSignal = beginSignal;
+            settings.beginSignalSize = beginSignalSize / 2; /* 16 bits */
+            settings.timeout = mTimeout; // sec
+            settings.outputFilePath = recFilePath;
+            settings.sampleRate = mSampleRate;
+            settings.recordBufferSize = mRecordBufferSize;
+            settings.playoutBufferSize = mPlayoutBufferSize;
+            settings.usage = mUsage;
+            settings.timeBetweenSignals = mTimeBetweenSignals;
+            settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
+            runExperiment(mApi, settings);
+          }
+        });
+        t.start();
+      }else{
+        // pack all the info together into settings
+        final TestSettings settings = new TestSettings();
+        settings.endSignal = endSignal;
+        settings.endSignalSize = endSignalSize / 2; /* 16 bits */
+        settings.beginSignal = beginSignal;
+        settings.beginSignalSize = beginSignalSize / 2; /* 16 bits */
+        settings.timeout = mTimeout; // sec
+        settings.outputFilePath = recFilePath;
+        settings.sampleRate = mSampleRate;
+        settings.recordBufferSize = mRecordBufferSize;
+        settings.playoutBufferSize = mPlayoutBufferSize;
+        settings.usage = mUsage;
+        settings.timeBetweenSignals = -1; //no automatic playback please
+        settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
 
-    } catch (IOException e) {
+        mMidiManager = (MidiManager)this.getSystemService(Context.MIDI_SERVICE);
+        mHandler = Handler.createAsync(getMainLooper());
+        mMidiManager.registerDeviceCallback(new MidiManager.DeviceCallback(){
+          public void onDeviceAdded(MidiDeviceInfo device) {
+            populateMidiDeviceList();
+          }
+
+          public void	onDeviceRemoved(MidiDeviceInfo device) {
+            populateMidiDeviceList();
+          }
+        }, mHandler);
+        mDeviceListView = findViewById(R.id.deviceList);
+        mDeviceListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+          @Override
+          public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            String[] device_desc = mDeviceListView.getItemAtPosition(position).toString().split("-");
+            int dev_id = Integer.valueOf(device_desc[1]);
+
+            MidiDeviceInfo[] infos = mMidiManager.getDevices();
+            for (MidiDeviceInfo info: infos ) {
+              if (info.getId() == dev_id) {
+                if (info.getOutputPortCount() > 0) {
+                  mMidiManager.openDevice(info, new MidiManager.OnDeviceOpenedListener() {
+                    @Override
+                    public void onDeviceOpened(MidiDevice device) {
+                      // Just open the first port (and in most cases the only one)
+                      MidiOutputPort output = device.openOutputPort(0);
+                      if (output != null) {
+                        output.onConnect(new MidiReceiver() {
+                          @Override
+                          public void onSend(byte[] msg, int offset, int count, long timestamp) throws IOException {
+                            midiSignal(timestamp);
+                            long time = System.nanoTime();
+                            Log.d(LOG_ID, "Got midi: timestamp = "+timestamp + " sys time "+time  + " diff: "+(time - timestamp));
+                          }
+                        });
+                      } else {
+                        Log.d(LOG_ID, "Failed to first port");
+                      }
+                    }
+                  }, mHandler);
+
+                  (new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                      runExperiment(mApi, settings);
+                    }
+                  })).start();
+
+                } else {
+                  Log.d(LOG_ID, "No output ports available");
+                }
+              }
+            }
+          }
+        });
+
+        populateMidiDeviceList();
+      }
+
+
+    } catch(IOException e) {
       e.printStackTrace();
     }
+
+  }
+
+  void populateMidiDeviceList() {
+    MidiDeviceInfo[] infos = mMidiManager.getDevices();
+    ArrayList<String> devices = new ArrayList<>();
+    for (MidiDeviceInfo info: infos) {
+      Bundle bundle = info.getProperties();
+      devices.add(bundle.get("product").toString() + "-" + info.getId());
+    }
+    mMidiDevices = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, devices);
+    mDeviceListView.setAdapter(mMidiDevices);
   }
 
   private String setupSignalSource() {
@@ -232,7 +347,6 @@ public class MainActivity extends AppCompatActivity {
 
     AudioDeviceInfo info = adevs[0]; // Take the first (and best)
     settings.deviceId = info.getId();
-
     if (api.equals(AAUDIO)) {
       Log.d(LOG_ID, "Calling native (AAudio) API");
       int status = runAAudio(settings);
@@ -242,7 +356,9 @@ public class MainActivity extends AppCompatActivity {
       javaAudio.runJavaAudio(this, settings);
     }
 
+
     Log.d(LOG_ID, "Done");
+
     System.exit(0);
   }
 }
