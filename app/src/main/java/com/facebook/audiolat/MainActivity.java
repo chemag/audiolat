@@ -21,7 +21,6 @@ import android.widget.ArrayAdapter;
 import android.widget.CompoundButton;
 import android.widget.ListView;
 import android.widget.ToggleButton;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -168,7 +167,7 @@ public class MainActivity extends AppCompatActivity {
           }
         });
         t.start();
-      }else{
+      } else {
         // pack all the info together into settings
         final TestSettings settings = new TestSettings();
         settings.endSignal = endSignal;
@@ -181,17 +180,17 @@ public class MainActivity extends AppCompatActivity {
         settings.recordBufferSize = mRecordBufferSize;
         settings.playoutBufferSize = mPlayoutBufferSize;
         settings.usage = mUsage;
-        settings.timeBetweenSignals = -1; //no automatic playback please
+        settings.timeBetweenSignals = -1; // no automatic playback please
         settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
 
-        mMidiManager = (MidiManager)this.getSystemService(Context.MIDI_SERVICE);
+        mMidiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
         mHandler = Handler.createAsync(getMainLooper());
-        mMidiManager.registerDeviceCallback(new MidiManager.DeviceCallback(){
+        mMidiManager.registerDeviceCallback(new MidiManager.DeviceCallback() {
           public void onDeviceAdded(MidiDeviceInfo device) {
             populateMidiDeviceList();
           }
 
-          public void	onDeviceRemoved(MidiDeviceInfo device) {
+          public void onDeviceRemoved(MidiDeviceInfo device) {
             populateMidiDeviceList();
           }
         }, mHandler);
@@ -199,11 +198,12 @@ public class MainActivity extends AppCompatActivity {
         mDeviceListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
           @Override
           public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-            String[] device_desc = mDeviceListView.getItemAtPosition(position).toString().split("-");
+            String[] device_desc =
+                mDeviceListView.getItemAtPosition(position).toString().split("-");
             int dev_id = Integer.valueOf(device_desc[1]);
 
             MidiDeviceInfo[] infos = mMidiManager.getDevices();
-            for (MidiDeviceInfo info: infos ) {
+            for (MidiDeviceInfo info : infos) {
               if (info.getId() == dev_id) {
                 if (info.getOutputPortCount() > 0) {
                   mMidiManager.openDevice(info, new MidiManager.OnDeviceOpenedListener() {
@@ -214,10 +214,13 @@ public class MainActivity extends AppCompatActivity {
                       if (output != null) {
                         output.onConnect(new MidiReceiver() {
                           @Override
-                          public void onSend(byte[] msg, int offset, int count, long timestamp) throws IOException {
+                          public void onSend(byte[] msg, int offset, int count, long timestamp)
+                              throws IOException {
                             midiSignal(timestamp);
                             long time = System.nanoTime();
-                            Log.d(LOG_ID, "Got midi: timestamp = "+timestamp + " sys time "+time  + " diff: "+(time - timestamp));
+                            Log.d(LOG_ID,
+                                "Got midi: timestamp = " + timestamp + " sys time " + time
+                                    + " diff: " + (time - timestamp));
                           }
                         });
                       } else {
@@ -244,21 +247,20 @@ public class MainActivity extends AppCompatActivity {
         populateMidiDeviceList();
       }
 
-
-    } catch(IOException e) {
+    } catch (IOException e) {
       e.printStackTrace();
     }
-
   }
 
   void populateMidiDeviceList() {
     MidiDeviceInfo[] infos = mMidiManager.getDevices();
     ArrayList<String> devices = new ArrayList<>();
-    for (MidiDeviceInfo info: infos) {
+    for (MidiDeviceInfo info : infos) {
       Bundle bundle = info.getProperties();
       devices.add(bundle.get("product").toString() + "-" + info.getId());
     }
-    mMidiDevices = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, devices);
+    mMidiDevices =
+        new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, devices);
     mDeviceListView.setAdapter(mMidiDevices);
   }
 
@@ -355,7 +357,6 @@ public class MainActivity extends AppCompatActivity {
       JavaAudio javaAudio = new JavaAudio();
       javaAudio.runJavaAudio(this, settings);
     }
-
 
     Log.d(LOG_ID, "Done");
 

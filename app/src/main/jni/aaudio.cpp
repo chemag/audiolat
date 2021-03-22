@@ -4,8 +4,9 @@
 #include <math.h>
 #include <pthread.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
+
 #include <string>
 //#include <android/trace.h>
 #include <dlfcn.h>
@@ -49,7 +50,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   if (stream == cb_data->record_stream) {
     // recording
     written_frames += num_frames;
-    if ( (cb_data->time_between_signals > 0 && time_sec - last_ts > cb_data->time_between_signals)) {
+    if ((cb_data->time_between_signals > 0 &&
+         time_sec - last_ts > cb_data->time_between_signals)) {
       // experiment start: we need, as soon as possible, to:
       // 1. play out the end signal
       playout_num_frames_remaining = cb_data->end_signal_size;
@@ -123,11 +125,14 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       playout_num_frames_remaining = cb_data->end_signal_size;
       LOGD("Set play frame rem to : %d", playout_num_frames_remaining);
       long nano = time.tv_sec * 1000000000 + time.tv_nsec;
-      if (record_num_frames_remaining > 0){
-        LOGD("midi triggered but we are still playing: %ld curr time: %ld, delay: %ld", midi_timestamp, nano, (nano-midi_timestamp));
-      }
-      else
-        LOGD("midi triggered: %ld curr time: %ld, delay: %ld", midi_timestamp, nano, (nano-midi_timestamp));
+      if (record_num_frames_remaining > 0) {
+        LOGD(
+            "midi triggered but we are still playing: %ld curr time: %ld, "
+            "delay: %ld",
+            midi_timestamp, nano, (nano - midi_timestamp));
+      } else
+        LOGD("midi triggered: %ld curr time: %ld, delay: %ld", midi_timestamp,
+             nano, (nano - midi_timestamp));
       midi_timestamp = -1;
     }
     if ((playout_num_frames_remaining > 0) &&
@@ -194,10 +199,9 @@ void log_current_settings(AAudioStream *playout_stream,
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_facebook_audiolat_MainActivity_midiSignal(JNIEnv *env,
-                                                  jobject /* this */,
-                                                  jlong nanotime) {
+                                                   jobject /* this */,
+                                                   jlong nanotime) {
   midi_timestamp = nanotime;
-
 }
 // main experiment function
 extern "C" JNIEXPORT jint JNICALL

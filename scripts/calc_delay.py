@@ -5,8 +5,10 @@ import numpy as np
 import pandas as pd
 debug = 0
 MIN_DIST_SEC = 0.01
+
+
 def find_pairs(data):
-    files = pd.unique(data['reference'])
+    # files = pd.unique(data['reference'])
 
     # The one with most hits is the "begin" signal
     begin_filename = None
