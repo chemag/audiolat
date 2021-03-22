@@ -19,7 +19,7 @@
         android:clickable="true"
         android:defaultFocusHighlightEnabled="true"
         android:drawSelectorOnTop="true"
-        android:listSelector="?android:attr/textColorHighlight"
+        android:listSelector="@color/highlight"
         tools:layout_editor_absoluteX="149dp"
         tools:layout_editor_absoluteY="361dp" />
 

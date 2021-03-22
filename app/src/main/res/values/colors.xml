@@ -6,4 +6,5 @@
     <color name="running">#FF00FF</color>
     <color name="done">#00FF00</color>
     <color name="failed">#FF0000</color>
+    <color name="highlight">#992266ff</color>
 </resources>
