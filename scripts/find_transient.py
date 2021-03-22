@@ -112,7 +112,7 @@ def main():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('files', nargs='+', help='file(s) to analyze (video)')
     parser.add_argument('-m', '--marker')
-    parser.add_argument('-l', '--leading', type=bool, default=True)
+    parser.add_argument('-l', '--leading', type=bool, default=False)
     parser.add_argument('-t', '--threshold', type=int, default=90)
 
     options = parser.parse_args()
@@ -176,13 +176,12 @@ def main():
         match = []
         for point in markers.iterrows():
             time=point[1]['time']
-            print(f"time: {time}")
             if options.leading:                
+               #limit to one second and 10ms in the future
+               signals = data.loc[(data['time'] >  time + 0.010) & (data['time'] < time + 1)]
+            else:
                 #limit to one second and 10ms in the past
                 signals = data.loc[(data['time'] <  time - 0.005) & (data['time'] > time - 1)]
-            else:
-                #limit to one second and 10ms in the future
-                signals = data.loc[(data['time'] >  time + 0.010) & (data['time'] < time + 1)]
             if len(signals) > 0:
                 end = signals.iloc[0]
                 match.append([round(end['time'],2), abs(round(end['time'] - time,2)), input_name, round(end['local max level'],2), round(end['file max level'],2), round(end['rms'],2)])
