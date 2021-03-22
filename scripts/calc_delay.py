@@ -3,13 +3,10 @@
 import argparse
 import numpy as np
 import pandas as pd
-
-
-# minimum full audio latency distance
-MIN_DIST_SEC = 0.002
-
-
-def find_pairs(data, debug=0):
+debug = 0
+MIN_DIST_SEC = 0.01
+def find_pairs(data):
+    files = pd.unique(data['reference'])
 
     # The one with most hits is the "begin" signal
     begin_filename = None
@@ -19,7 +16,6 @@ def find_pairs(data, debug=0):
         if ref_len > max_len:
             max_len = ref_len
             begin_filename = signal_filename
-
     matches = []
 
     begin_signals = data.loc[data['reference'] == begin_filename]
@@ -45,13 +41,15 @@ def find_pairs(data, debug=0):
     return result
 
 
-def parse_input_file(filename):
+def parse_input_file(filename, options):
     # 135263,16.907875,47,audio.wav
     data = pd.read_csv(filename)
     if data is None:
         print('warning: No data on {filename}')
         return None, None, None
     pairs = find_pairs(data)
+    if options.output is not None:
+        pairs.to_csv(options.output, index=False)
     samples = len(pairs['latency'])
     if samples == 0:
         print('warning: No data on {filename}')
@@ -69,7 +67,7 @@ def main():
     options = parser.parse_args()
 
     for filename in options.files:
-        average_sec, stddev_sec, samples = parse_input_file(filename)
+        average_sec, stddev_sec, samples = parse_input_file(filename, options)
         if average_sec is None:
             continue
         print(f'filename: {filename} average_sec: {average_sec} '

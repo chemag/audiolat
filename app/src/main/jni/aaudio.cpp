@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
+#include <time.h>
 #include <string>
 //#include <android/trace.h>
 #include <dlfcn.h>
@@ -13,7 +13,7 @@
   __android_log_print(ANDROID_LOG_DEBUG, "audiolat", __VA_ARGS__)
 
 static bool running = false;
-
+static long midi_timestamp = -1;
 struct callback_data {
   FILE *output_file_descriptor;
   AAudioStream *record_stream;
@@ -24,6 +24,7 @@ struct callback_data {
   int begin_signal_size;
   int samplerate;
   int timeout;
+  int time_between_signals;
 };
 
 aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
@@ -33,7 +34,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   static int playout_num_frames_remaining = 0;
   static int record_num_frames_remaining = 0;
   static float last_ts = 0;
-
+  struct timespec time;
+  clock_gettime(CLOCK_MONOTONIC, &time);
   struct callback_data *cb_data = (struct callback_data *)userData;
   aaudio_stream_state_t playout_state =
       AAudioStream_getState(cb_data->playout_stream);
@@ -47,7 +49,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   if (stream == cb_data->record_stream) {
     // recording
     written_frames += num_frames;
-    if (time_sec - last_ts > 2) {
+    if ( (cb_data->time_between_signals > 0 && time_sec - last_ts > cb_data->time_between_signals)) {
       // experiment start: we need, as soon as possible, to:
       // 1. play out the end signal
       playout_num_frames_remaining = cb_data->end_signal_size;
@@ -117,6 +119,17 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     // playout
     LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
     int playout_buffer_offset = 0;
+    if (midi_timestamp > 0 && record_num_frames_remaining <= 0) {
+      playout_num_frames_remaining = cb_data->end_signal_size;
+      LOGD("Set play frame rem to : %d", playout_num_frames_remaining);
+      long nano = time.tv_sec * 1000000000 + time.tv_nsec;
+      if (record_num_frames_remaining > 0){
+        LOGD("midi triggered but we are still playing: %ld curr time: %ld, delay: %ld", midi_timestamp, nano, (nano-midi_timestamp));
+      }
+      else
+        LOGD("midi triggered: %ld curr time: %ld, delay: %ld", midi_timestamp, nano, (nano-midi_timestamp));
+      midi_timestamp = -1;
+    }
     if ((playout_num_frames_remaining > 0) &&
         (playout_state == AAUDIO_STREAM_STATE_STARTED)) {
       // we are in the middle of playing the end signal:
@@ -179,6 +192,13 @@ void log_current_settings(AAudioStream *playout_stream,
        AAudioStream_getPerformanceMode(record_stream));
 }
 
+extern "C" JNIEXPORT void JNICALL
+Java_com_facebook_audiolat_MainActivity_midiSignal(JNIEnv *env,
+                                                  jobject /* this */,
+                                                  jlong nanotime) {
+  midi_timestamp = nanotime;
+
+}
 // main experiment function
 extern "C" JNIEXPORT jint JNICALL
 Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
@@ -254,6 +274,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     LOGD("Failed to create playout stream");
     goto cleanup;
   }
+  // more of this later...device_id);
   AAudioStreamBuilder_setDeviceId(playout_builder, AAUDIO_UNSPECIFIED);
   AAudioStreamBuilder_setUsage(playout_builder, usage);
   AAudioStreamBuilder_setDirection(playout_builder, AAUDIO_DIRECTION_OUTPUT);
@@ -318,6 +339,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   cb_data.begin_signal_size = begin_signal_size;
   cb_data.samplerate = sample_rate;
   cb_data.timeout = timeout;
+  cb_data.time_between_signals = time_between_signals;
 
   log_current_settings(playout_stream, record_stream);
 
@@ -337,7 +359,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
 
   // wait until it is done
   while (running) {
-    sleep(time_between_signals);
+    sleep(2);
   }
 
   // cleanup
