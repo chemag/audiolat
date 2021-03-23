@@ -53,6 +53,50 @@ public class MainActivity extends AppCompatActivity {
   public native int runAAudio(TestSettings settings);
   public native void midiSignal(long nanotime);
 
+  protected void getMidiId(MidiManager midiManager, Handler handler) {
+    // check midi id
+    boolean foundMidiId = false;
+    MidiDeviceInfo[] infos = midiManager.getDevices();
+    for (MidiDeviceInfo info : infos) {
+      Bundle bundle = info.getProperties();
+      Log.d(LOG_ID,
+          "MidiDeviceInfo { "
+              + "id: " + info.getId() + " "
+              + "inputPortCount() : " + info.getInputPortCount() + " "
+              + "outputPortCount() : " + info.getOutputPortCount() + " "
+              + "product: " + bundle.get("product").toString() + " "
+              + "}");
+      if (mMidiId == -1) {
+        Log.d(LOG_ID,
+            "default midiid mapped to first device "
+                + " "
+                + "midiid: " + info.getId() + " "
+                + "product: " + bundle.get("product").toString());
+        mMidiId = info.getId();
+      }
+      if (info.getId() == mMidiId) {
+        // found it
+        foundMidiId = true;
+        mMidiDeviceInfo = info;
+        // now check there are valid output ports
+        if (info.getOutputPortCount() <= 0) {
+          Log.e(LOG_ID,
+              "MidiDeviceInfo invalid output port count "
+                  + "id: " + info.getId() + " "
+                  + "outputPortCount() : " + info.getOutputPortCount());
+          System.exit(-1);
+        }
+        // do not break so that we print all the MidiDeviceInfo's
+      }
+    }
+    if (!foundMidiId) {
+      Log.e(LOG_ID,
+          "MidiDeviceInfo invalid midiid "
+              + "midiid: " + mMidiId + " ");
+      System.exit(-1);
+    }
+  }
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -166,50 +210,13 @@ public class MainActivity extends AppCompatActivity {
         });
         t.start();
       } else {
-        MidiManager mMidiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
+        MidiManager midiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
         mHandler = Handler.createAsync(getMainLooper());
+        getMidiId(midiManager, mHandler);
 
-        // check midi id
-        boolean foundMidiId = false;
-        MidiDeviceInfo[] infos = mMidiManager.getDevices();
-        for (MidiDeviceInfo info : infos) {
-          Bundle bundle = info.getProperties();
-          Log.d(LOG_ID,
-              "MidiDeviceInfo { "
-                  + "id: " + info.getId() + " "
-                  + "inputPortCount() : " + info.getInputPortCount() + " "
-                  + "outputPortCount() : " + info.getOutputPortCount() + " "
-                  + "product: " + bundle.get("product").toString() + " "
-                  + "}");
-          if (mMidiId == -1) {
-            Log.d(LOG_ID,
-                "default midiid mapped to first device "
-                    + " "
-                    + "midiid: " + info.getId() + " "
-                    + "product: " + bundle.get("product").toString());
-            mMidiId = info.getId();
-          }
-          if (info.getId() == mMidiId) {
-            // found it
-            foundMidiId = true;
-            mMidiDeviceInfo = info;
-            // now check there are valid output ports
-            if (info.getOutputPortCount() <= 0) {
-              Log.e(LOG_ID,
-                  "MidiDeviceInfo invalid output port count "
-                      + "id: " + info.getId() + " "
-                      + "outputPortCount() : " + info.getOutputPortCount());
-              System.exit(-1);
-            }
-            // do not break so that we print all the MidiDeviceInfo's
-          }
-        }
-        if (!foundMidiId) {
-          Log.e(LOG_ID,
-              "MidiDeviceInfo invalid midiid "
-                  + "midiid: " + mMidiId + " ");
-          System.exit(-1);
-        }
+        // disable automatic playback
+        mTimeBetweenSignals = -1;
+
         // pack all the info together into settings
         final TestSettings settings = new TestSettings();
         settings.endSignal = endSignal;
@@ -226,7 +233,7 @@ public class MainActivity extends AppCompatActivity {
         settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
 
         // open the midi device
-        mMidiManager.openDevice(mMidiDeviceInfo, new MidiManager.OnDeviceOpenedListener() {
+        midiManager.openDevice(mMidiDeviceInfo, new MidiManager.OnDeviceOpenedListener() {
           @Override
           public void onDeviceOpened(MidiDevice device) {
             // Just open the first port (and in most cases the only one)
