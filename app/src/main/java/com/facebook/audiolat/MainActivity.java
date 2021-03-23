@@ -45,8 +45,6 @@ public class MainActivity extends AppCompatActivity {
   int mJavaaudioPerformanceMode = 0;
   boolean mMidiMode = false;
   int mMidiId = -1;
-  ArrayAdapter<String> mMidiDevices;
-  ;
   MidiDeviceInfo mMidiDeviceInfo;
   static {
     System.loadLibrary("audiolat");
