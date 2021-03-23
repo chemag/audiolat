@@ -12,19 +12,14 @@ import android.media.midi.MidiOutputPort;
 import android.media.midi.MidiReceiver;
 import android.os.Bundle;
 import android.os.Handler;
-import android.support.v4.app.ActivityCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
-import android.view.View;
-import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
-import android.widget.CompoundButton;
-import android.widget.ListView;
-import android.widget.ToggleButton;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 
 public class MainActivity extends AppCompatActivity {
   public static final String LOG_ID = "audiolat";
@@ -41,7 +36,9 @@ public class MainActivity extends AppCompatActivity {
   int mTimeBetweenSignals = 2;
   public String AAUDIO = "aaudio";
   public String JAVAAUDIO = "javaaudio";
-  String mApi = AAUDIO;
+  public String OBOE = "oboe";
+  String mApi = OBOE;
+  JavaAudio mJavaAudio;
   int mJavaaudioPerformanceMode = 0;
   boolean mMidiMode = false;
   int mMidiId = -1;
@@ -51,7 +48,9 @@ public class MainActivity extends AppCompatActivity {
   }
 
   public native int runAAudio(TestSettings settings);
-  public native void midiSignal(long nanotime);
+  public native int runOboe(TestSettings settings);
+  public native void aaudioMidiSignal(long nanotime);
+  public native void oboeMidiSignal(long nanotime);
 
   protected void getMidiId(MidiManager midiManager, Handler handler) {
     // check midi id
@@ -247,7 +246,13 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onSend(byte[] msg, int offset, int count, long timestamp)
                     throws IOException {
-                  midiSignal(timestamp);
+                  if (mApi.equals(AAUDIO)) {
+                    aaudioMidiSignal(timestamp);
+                  } else if (mApi.equals(OBOE)) {
+                    oboeMidiSignal(timestamp);
+                  } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
+                    mJavaAudio.javaMidiSignal(timestamp);
+                  }
                   long nanoTime = System.nanoTime();
                   Log.d(LOG_ID,
                       "received midi data: "
@@ -362,12 +367,15 @@ public class MainActivity extends AppCompatActivity {
     if (api.equals(AAUDIO)) {
       Log.d(LOG_ID, "Calling native (AAudio) API");
       int status = runAAudio(settings);
+    } else if (api.equals(OBOE)) {
+      Log.d(LOG_ID, "Calling native (oboe) API");
+      int status = runOboe(settings);
+      Log.d(LOG_ID, "Done, status = " + status);
     } else if (api.equals(JAVAAUDIO)) {
-      Log.d(LOG_ID, "Calling java (JavaAudio) API");
-      JavaAudio javaAudio = new JavaAudio();
-      javaAudio.runJavaAudio(this, settings);
-    }
-
+       Log.d(LOG_ID, "Calling java (JavaAudio) API");
+      mJavaAudio = new JavaAudio();
+      mJavaAudio.runJavaAudio(this, settings);
+     }
     Log.d(LOG_ID, "Done");
 
     System.exit(0);
