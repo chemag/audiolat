@@ -12,10 +12,15 @@ import android.media.midi.MidiOutputPort;
 import android.media.midi.MidiReceiver;
 import android.os.Bundle;
 import android.os.Handler;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-
+import android.support.v4.app.ActivityCompat;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.CompoundButton;
+import android.widget.ListView;
+import android.widget.ToggleButton;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -24,7 +29,6 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
   public static final String LOG_ID = "audiolat";
   Handler mHandler;
-
   // default values
   int mSampleRate = 16000;
   int mTimeout = 15;
@@ -37,41 +41,39 @@ public class MainActivity extends AppCompatActivity {
   int mTimeBetweenSignals = 2;
   public String AAUDIO = "aaudio";
   public String JAVAAUDIO = "javaaudio";
-  public String OBOE = "oboe";
-  String mApi = OBOE;
-  JavaAudio mJavaAudio;
+  String mApi = AAUDIO;
   int mJavaaudioPerformanceMode = 0;
   boolean mMidiMode = false;
   int mMidiId = -1;
   MidiDeviceInfo mMidiDeviceInfo;
-
-
   static {
     System.loadLibrary("audiolat");
   }
 
   public native int runAAudio(TestSettings settings);
-  public native int runOboe(TestSettings settings);
-  public native void aaudioMidiSignal(long nanotime);
-  public native void oboeMidiSignal(long nanotime);
+  public native void midiSignal(long nanotime);
 
   protected void getMidiId(MidiManager midiManager, Handler handler) {
     // check midi id
     boolean foundMidiId = false;
     MidiDeviceInfo[] infos = midiManager.getDevices();
+    // check there is at least a valid midi id
+    if (infos.length < 1) {
+      Log.e(LOG_ID, "MidiDeviceInfo no midi devices available");
+      System.exit(-1);
+    }
     for (MidiDeviceInfo info : infos) {
       Bundle bundle = info.getProperties();
       Log.d(LOG_ID,
           "MidiDeviceInfo { "
               + "id: " + info.getId() + " "
-              + "inputPortCount() : " + info.getInputPortCount() + " "
-              + "outputPortCount() : " + info.getOutputPortCount() + " "
+              + "inputPortCount(): " + info.getInputPortCount() + " "
+              + "outputPortCount(): " + info.getOutputPortCount() + " "
               + "product: " + bundle.get("product").toString() + " "
               + "}");
       if (mMidiId == -1) {
         Log.d(LOG_ID,
             "default midiid mapped to first device "
-                + " "
                 + "midiid: " + info.getId() + " "
                 + "product: " + bundle.get("product").toString());
         mMidiId = info.getId();
@@ -94,7 +96,7 @@ public class MainActivity extends AppCompatActivity {
     if (!foundMidiId) {
       Log.e(LOG_ID,
           "MidiDeviceInfo invalid midiid "
-              + "midiid: " + mMidiId + " ");
+              + "midiid: " + mMidiId);
       System.exit(-1);
     }
   }
@@ -245,18 +247,13 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onSend(byte[] msg, int offset, int count, long timestamp)
                     throws IOException {
-                  if (mApi.equals(AAUDIO)) {
-                    aaudioMidiSignal(timestamp);
-                  } else if (mApi.equals(OBOE)) {
-                    oboeMidiSignal(timestamp);
-                  } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
-                    mJavaAudio.javaMidiSignal(timestamp);
-                  }
-
-                  long time = System.nanoTime();
+                  midiSignal(timestamp);
+                  long nanoTime = System.nanoTime();
                   Log.d(LOG_ID,
-                      "Got midi: timestamp = " + timestamp + " sys time " + time
-                          + " diff: " + (time - timestamp));
+                      "received midi data: "
+                          + "timestamp: " + timestamp + " "
+                          + "nanoTime: " + nanoTime + " "
+                          + "diff: " + (nanoTime - timestamp));
                 }
               });
             } else {
@@ -365,17 +362,14 @@ public class MainActivity extends AppCompatActivity {
     if (api.equals(AAUDIO)) {
       Log.d(LOG_ID, "Calling native (AAudio) API");
       int status = runAAudio(settings);
-    } else if (api.equals(OBOE)) {
-      Log.d(LOG_ID, "Calling native (oboe) API");
-      int status = runOboe(settings);
-      Log.d(LOG_ID, "Done, status = " + status);
     } else if (api.equals(JAVAAUDIO)) {
       Log.d(LOG_ID, "Calling java (JavaAudio) API");
-      mJavaAudio = new JavaAudio();
-      mJavaAudio.runJavaAudio(this, settings);
+      JavaAudio javaAudio = new JavaAudio();
+      javaAudio.runJavaAudio(this, settings);
     }
 
     Log.d(LOG_ID, "Done");
+
     System.exit(0);
   }
 }
