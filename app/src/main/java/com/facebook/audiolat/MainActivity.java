@@ -97,6 +97,56 @@ public class MainActivity extends AppCompatActivity {
     }
   }
 
+  protected void readCliArguments() {
+    // read CLI arguments
+    Bundle extras = this.getIntent().getExtras();
+
+    if (extras != null) {
+      if (extras.containsKey("sr")) {
+        String rate = extras.getString("sr");
+        mSampleRate = Integer.parseInt(rate);
+      }
+      if (extras.containsKey("t")) {
+        String timeout = extras.getString("t");
+        mTimeout = Integer.parseInt(timeout);
+      }
+      if (extras.containsKey("rbs")) {
+        String rbs = extras.getString("rbs");
+        mRecordBufferSize = Integer.parseInt(rbs);
+      }
+      if (extras.containsKey("pbs")) {
+        String pbs = extras.getString("pbs");
+        mPlayoutBufferSize = Integer.parseInt(pbs);
+      }
+      if (extras.containsKey("signal")) {
+        mSignal = extras.getString("signal");
+      }
+      if (extras.containsKey("usage")) {
+        String usage = extras.getString("usage");
+        Log.d(LOG_ID, "Set usage" + usage);
+        mUsage = Integer.parseInt(usage);
+      }
+      if (extras.containsKey("tbs")) {
+        String tbs = extras.getString("tbs");
+        mTimeBetweenSignals = Integer.parseInt(tbs);
+      }
+      if (extras.containsKey("api")) {
+        mApi = extras.getString("api");
+      }
+      if (extras.containsKey("atpm")) {
+        String atpm = extras.getString("atpm");
+        mJavaaudioPerformanceMode = Integer.parseInt(atpm);
+      }
+      if (extras.containsKey("midi")) {
+        mMidiMode = true;
+      }
+      if (extras.containsKey("midiid")) {
+        String midiid = extras.getString("midiid");
+        mMidiId = Integer.parseInt(midiid);
+      }
+    }
+  }
+
   protected TestSettings buildTestSettings(final ByteBuffer endSignal, final int endSignalSize,
       final ByteBuffer beginSignal, final int beginSignalSize, final String recFilePath) {
     TestSettings settings = new TestSettings();
@@ -128,53 +178,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     try {
-      // read CLI arguments
-      Bundle extras = this.getIntent().getExtras();
-
-      if (extras != null) {
-        if (extras.containsKey("sr")) {
-          String rate = extras.getString("sr");
-          mSampleRate = Integer.parseInt(rate);
-        }
-        if (extras.containsKey("t")) {
-          String timeout = extras.getString("t");
-          mTimeout = Integer.parseInt(timeout);
-        }
-        if (extras.containsKey("rbs")) {
-          String rbs = extras.getString("rbs");
-          mRecordBufferSize = Integer.parseInt(rbs);
-        }
-        if (extras.containsKey("pbs")) {
-          String pbs = extras.getString("pbs");
-          mPlayoutBufferSize = Integer.parseInt(pbs);
-        }
-        if (extras.containsKey("signal")) {
-          mSignal = extras.getString("signal");
-        }
-        if (extras.containsKey("usage")) {
-          String usage = extras.getString("usage");
-          Log.d(LOG_ID, "Set usage" + usage);
-          mUsage = Integer.parseInt(usage);
-        }
-        if (extras.containsKey("tbs")) {
-          String tbs = extras.getString("tbs");
-          mTimeBetweenSignals = Integer.parseInt(tbs);
-        }
-        if (extras.containsKey("api")) {
-          mApi = extras.getString("api");
-        }
-        if (extras.containsKey("atpm")) {
-          String atpm = extras.getString("atpm");
-          mJavaaudioPerformanceMode = Integer.parseInt(atpm);
-        }
-        if (extras.containsKey("midi")) {
-          mMidiMode = true;
-        }
-        if (extras.containsKey("midiid")) {
-          String midiid = extras.getString("midiid");
-          mMidiId = Integer.parseInt(midiid);
-        }
-      }
+      readCliArguments();
 
       setContentView(R.layout.activity_main);
       String file_path = "/sdcard/audiolat";
