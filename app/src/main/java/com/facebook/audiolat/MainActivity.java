@@ -36,7 +36,8 @@ public class MainActivity extends AppCompatActivity {
   public String AAUDIO = "aaudio";
   public String JAVAAUDIO = "javaaudio";
   public String OBOE = "oboe";
-  String mApi = OBOE;
+  // default backend
+  String mApi = AAUDIO;
   JavaAudio mJavaAudio;
   int mJavaaudioPerformanceMode = 0;
   boolean mMidiMode = false;
