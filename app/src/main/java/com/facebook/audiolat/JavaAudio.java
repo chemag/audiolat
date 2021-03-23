@@ -147,7 +147,7 @@ public class JavaAudio {
           }
           if (read > 0) {
             try {
-              if (time_sec - last_ts > settings.timeBetweenSignals || rec_buffer_index > 0) {
+              if ((settings.timeBetweenSignals > 0 && time_sec - last_ts > settings.timeBetweenSignals) || rec_buffer_index > 0) {
                 // signal_size in bytes
                 int signal_size = (read > settings.beginSignalSize * 2 - rec_buffer_index)
                     ? settings.beginSignalSize * 2 - rec_buffer_index
