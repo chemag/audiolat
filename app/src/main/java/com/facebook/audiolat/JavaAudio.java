@@ -131,23 +131,27 @@ public class JavaAudio {
               String.format("record num_frames: %d time_sec: %.2f last_time: %.2f recbi: %d",
                   written_frames, time_sec, last_ts, rec_buffer_index));
 
-          if ((settings.timeBetweenSignals > 0 && time_sec - last_ts > settings.timeBetweenSignals)  ||
-                  (midi_timestamp > 0)) {
+          if (((settings.timeBetweenSignals > 0)
+                  && (time_sec - last_ts > settings.timeBetweenSignals))
+              || (midi_timestamp > 0)) {
             long nano = System.nanoTime();
             Log.d(LOG_ID, "Start playing signal");
             player.stop();
             player.setPlaybackHeadPosition(0);
             player.play();
             if (midi_timestamp > 0) {
-              Log.d(LOG_ID, String.format("midi triggered: %d curr time: %d, delay: %d",
-                      midi_timestamp, nano, (nano - midi_timestamp)));
+              Log.d(LOG_ID,
+                  String.format("midi triggered: %d curr time: %d, delay: %d", midi_timestamp, nano,
+                      (nano - midi_timestamp)));
 
               midi_timestamp = 0;
             }
           }
           if (read > 0) {
             try {
-              if ((settings.timeBetweenSignals > 0 && time_sec - last_ts > settings.timeBetweenSignals) || rec_buffer_index > 0) {
+              if (((settings.timeBetweenSignals > 0)
+                      && (time_sec - last_ts > settings.timeBetweenSignals))
+                  || (rec_buffer_index > 0)) {
                 // signal_size in bytes
                 int signal_size = (read > settings.beginSignalSize * 2 - rec_buffer_index)
                     ? settings.beginSignalSize * 2 - rec_buffer_index
