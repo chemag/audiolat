@@ -7,12 +7,12 @@ public class TestSettings {
   public int timeout;
   int deviceId;
   ByteBuffer endSignal;
-  int endSignalSize;
+  int endSignalSizeInBytes;
   ByteBuffer beginSignal;
-  int beginSignalSize;
+  int beginSignalSizeInBytes;
   int sampleRate;
-  int playoutBufferSize;
-  int recordBufferSize;
+  int playoutBufferSizeInBytes;
+  int recordBufferSizeInBytes;
   String outputFilePath;
   int usage;
   int timeBetweenSignals;

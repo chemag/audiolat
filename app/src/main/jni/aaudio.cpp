@@ -20,9 +20,9 @@ struct callback_data {
   AAudioStream *record_stream;
   AAudioStream *playout_stream;
   int16_t *end_signal;
-  int end_signal_size;
+  int end_signal_size_in_frames;
   int16_t *begin_signal;
-  int begin_signal_size;
+  int begin_signal_size_in_frames;
   int samplerate;
   int timeout;
   int time_between_signals;
@@ -52,9 +52,9 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
          time_sec - last_ts > cb_data->time_between_signals)) {
       // experiment start: we need, as soon as possible, to:
       // 1. play out the end signal
-      playout_num_frames_remaining = cb_data->end_signal_size;
+      playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
       // 2. record the begin signal
-      record_num_frames_remaining = cb_data->begin_signal_size;
+      record_num_frames_remaining = cb_data->begin_signal_size_in_frames;
       // 3. set the time for the next experiment
       last_ts = time_sec;
       LOGD(
@@ -64,7 +64,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     }
     int record_buffer_offset = 0;
     if (record_num_frames_remaining > 0 &&
-        record_num_frames_remaining < cb_data->begin_signal_size) {
+        record_num_frames_remaining < cb_data->begin_signal_size_in_frames) {
       // we are in the middle of recording the begin signal:
       // Let's write it on the left side
       // +--------------------------------+
@@ -73,7 +73,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       int num_frames_to_write =
           std::min(record_num_frames_remaining, num_frames);
       int begin_signal_offset =
-          cb_data->begin_signal_size - record_num_frames_remaining;
+          cb_data->begin_signal_size_in_frames - record_num_frames_remaining;
       LOGD("record source: begin num_frames: %d remaining: %d",
            num_frames_to_write, record_num_frames_remaining);
       fwrite(cb_data->begin_signal + begin_signal_offset,
@@ -94,7 +94,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
              (size_t)num_frames_to_write, cb_data->output_file_descriptor);
       num_frames -= num_frames_to_write;
     }
-    if (record_num_frames_remaining == cb_data->begin_signal_size) {
+    if (record_num_frames_remaining == cb_data->begin_signal_size_in_frames) {
       // we are at the beginning of recording the begin signal:
       // Let's write it on the right side
       // +--------------------------------+
@@ -120,7 +120,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
     int playout_buffer_offset = 0;
     if (last_midi_nanotime > 0 && record_num_frames_remaining <= 0) {
-      playout_num_frames_remaining = cb_data->end_signal_size;
+      playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
       LOGD("Set play frame rem to : %d", playout_num_frames_remaining);
       struct timespec time;
       clock_gettime(CLOCK_MONOTONIC, &time);
@@ -155,7 +155,7 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       int num_frames_to_write =
           std::min(num_frames, playout_num_frames_remaining);
       int end_signal_offset =
-          cb_data->end_signal_size - playout_num_frames_remaining;
+          cb_data->end_signal_size_in_frames - playout_num_frames_remaining;
       memcpy(audioData, cb_data->end_signal + end_signal_offset,
              sizeof(int16_t) * num_frames_to_write);
       num_frames -= num_frames_to_write;
@@ -183,23 +183,25 @@ void log_current_settings(AAudioStream *playout_stream,
   int playout_frames_per_burst = AAudioStream_getFramesPerBurst(playout_stream);
   int playout_buffer_capacity =
       AAudioStream_getBufferCapacityInFrames(playout_stream);
-  int playout_current_buffer_size =
+  int playout_current_buffer_size_in_frames =
       AAudioStream_getBufferSizeInFrames(playout_stream);
 
   int record_frames_per_burst = AAudioStream_getFramesPerBurst(record_stream);
   int record_buffer_capacity =
       AAudioStream_getBufferCapacityInFrames(record_stream);
-  int record_current_buffer_size =
+  int record_current_buffer_size_in_frames =
       AAudioStream_getBufferSizeInFrames(record_stream);
 
   LOGD("playout frames_per_burst: %d", playout_frames_per_burst);
-  LOGD("playout current_buffer_size: %d", playout_current_buffer_size);
+  LOGD("playout current_buffer_size_in_frames: %d",
+       playout_current_buffer_size_in_frames);
   LOGD("playout buffer_capacity: %d", playout_buffer_capacity);
   LOGD("playout performance_mode: %d",
        AAudioStream_getPerformanceMode(playout_stream));
 
   LOGD("record frames_per_burst: %d", record_frames_per_burst);
-  LOGD("record current_buffer_size: %d", record_current_buffer_size);
+  LOGD("record current_buffer_size_in_frames: %d",
+       record_current_buffer_size_in_frames);
   LOGD("record buffer_capacity: %d", record_buffer_capacity);
   LOGD("record performance_mode: %d",
        AAudioStream_getPerformanceMode(record_stream));
@@ -222,12 +224,12 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   jfieldID fid =
       env->GetFieldID(cSettings, "endSignal", "Ljava/nio/ByteBuffer;");
   jobject end_signal = env->GetObjectField(settings, fid);
-  fid = env->GetFieldID(cSettings, "endSignalSize", "I");
-  jint end_signal_size = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "endSignalSizeInBytes", "I");
+  jint end_signal_size_in_bytes = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "beginSignal", "Ljava/nio/ByteBuffer;");
   jobject begin_signal = env->GetObjectField(settings, fid);
-  fid = env->GetFieldID(cSettings, "beginSignalSize", "I");
-  jint begin_signal_size = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "beginSignalSizeInBytes", "I");
+  jint begin_signal_size_in_bytes = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "sampleRate", "I");
   jint sample_rate = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "deviceId", "I");
@@ -236,10 +238,10 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   jstring output_file_path = (jstring)env->GetObjectField(settings, fid);
   fid = env->GetFieldID(cSettings, "timeout", "I");
   jint timeout = env->GetIntField(settings, fid);
-  fid = env->GetFieldID(cSettings, "playoutBufferSize", "I");
-  jint playout_buffer_size = env->GetIntField(settings, fid);
-  fid = env->GetFieldID(cSettings, "recordBufferSize", "I");
-  jint record_buffer_size = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "playoutBufferSizeInBytes", "I");
+  jint playout_buffer_size_in_bytes = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "recordBufferSizeInBytes", "I");
+  jint record_buffer_size_in_bytes = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "usage", "I");
   jint usage = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "timeBetweenSignals", "I");
@@ -339,17 +341,19 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   }
 
   // set stream sizes
-  AAudioStream_setBufferSizeInFrames(playout_stream, playout_buffer_size);
-  AAudioStream_setBufferSizeInFrames(record_stream, record_buffer_size);
+  AAudioStream_setBufferSizeInFrames(playout_stream,
+                                     playout_buffer_size_in_bytes / 2);
+  AAudioStream_setBufferSizeInFrames(record_stream,
+                                     record_buffer_size_in_bytes / 2);
 
   // set the callback data
   cb_data.output_file_descriptor = output_file_descriptor;
   cb_data.record_stream = record_stream;
   cb_data.playout_stream = playout_stream;
   cb_data.end_signal = end_signal_buffer;
-  cb_data.end_signal_size = end_signal_size;
+  cb_data.end_signal_size_in_frames = end_signal_size_in_bytes / 2;
   cb_data.begin_signal = begin_signal_buffer;
-  cb_data.begin_signal_size = begin_signal_size;
+  cb_data.begin_signal_size_in_frames = begin_signal_size_in_bytes / 2;
   cb_data.samplerate = sample_rate;
   cb_data.timeout = timeout;
   cb_data.time_between_signals = time_between_signals;

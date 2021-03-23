@@ -26,8 +26,8 @@ public class MainActivity extends AppCompatActivity {
   // default values
   int mSampleRate = 16000;
   int mTimeout = 15;
-  int mRecordBufferSize = 32;
-  int mPlayoutBufferSize = 32;
+  int mRecordBufferSizeInBytes = 32;
+  int mPlayoutBufferSizeInBytes = 32;
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
   String mSignal = "chirp";
@@ -115,11 +115,11 @@ public class MainActivity extends AppCompatActivity {
       }
       if (extras.containsKey("rbs")) {
         String rbs = extras.getString("rbs");
-        mRecordBufferSize = Integer.parseInt(rbs);
+        mRecordBufferSizeInBytes = Integer.parseInt(rbs);
       }
       if (extras.containsKey("pbs")) {
         String pbs = extras.getString("pbs");
-        mPlayoutBufferSize = Integer.parseInt(pbs);
+        mPlayoutBufferSizeInBytes = Integer.parseInt(pbs);
       }
       if (extras.containsKey("signal")) {
         mSignal = extras.getString("signal");
@@ -150,18 +150,19 @@ public class MainActivity extends AppCompatActivity {
     }
   }
 
-  protected TestSettings buildTestSettings(final ByteBuffer endSignal, final int endSignalSize,
-      final ByteBuffer beginSignal, final int beginSignalSize, final String recFilePath) {
+  protected TestSettings buildTestSettings(final ByteBuffer endSignal,
+      final int endSignalSizeInBytes, final ByteBuffer beginSignal,
+      final int beginSignalSizeInBytes, final String recFilePath) {
     TestSettings settings = new TestSettings();
     settings.endSignal = endSignal;
-    settings.endSignalSize = endSignalSize / 2; /* 16 bits */
+    settings.endSignalSizeInBytes = endSignalSizeInBytes;
     settings.beginSignal = beginSignal;
-    settings.beginSignalSize = beginSignalSize / 2; /* 16 bits */
+    settings.beginSignalSizeInBytes = beginSignalSizeInBytes;
     settings.timeout = mTimeout; // sec
     settings.outputFilePath = recFilePath;
     settings.sampleRate = mSampleRate;
-    settings.recordBufferSize = mRecordBufferSize;
-    settings.playoutBufferSize = mPlayoutBufferSize;
+    settings.recordBufferSizeInBytes = mRecordBufferSizeInBytes;
+    settings.playoutBufferSizeInBytes = mPlayoutBufferSizeInBytes;
     settings.usage = mUsage;
     settings.timeBetweenSignals = mTimeBetweenSignals;
     settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
@@ -193,21 +194,21 @@ public class MainActivity extends AppCompatActivity {
 
       // read the end signal into endSignal
       InputStream is = this.getResources().openRawResource(mEndSignal);
-      final int endSignalSize = is.available();
-      final byte[] endSignalBuffer = new byte[endSignalSize];
+      final int endSignalSizeInBytes = is.available();
+      final byte[] endSignalBuffer = new byte[endSignalSizeInBytes];
 
-      int read = is.read(endSignalBuffer);
-      final ByteBuffer endSignal = ByteBuffer.allocateDirect(read);
+      int read_bytes = is.read(endSignalBuffer);
+      final ByteBuffer endSignal = ByteBuffer.allocateDirect(read_bytes);
       endSignal.put(endSignalBuffer); // Small files only :)
       is.close();
 
       // read the begin signal into beginSignal
       is = this.getResources().openRawResource(mBeginSignal);
-      final int beginSignalSize = is.available();
-      final byte[] beginSignalBuffer = new byte[beginSignalSize];
+      final int beginSignalSizeInBytes = is.available();
+      final byte[] beginSignalBuffer = new byte[beginSignalSizeInBytes];
 
-      read = is.read(beginSignalBuffer);
-      final ByteBuffer beginSignal = ByteBuffer.allocateDirect(read);
+      read_bytes = is.read(beginSignalBuffer);
+      final ByteBuffer beginSignal = ByteBuffer.allocateDirect(read_bytes);
       beginSignal.put(beginSignalBuffer);
 
       // begin a thread that implements the experiment
@@ -218,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
           public void run() {
             // pack all the info together into settings
             TestSettings settings = buildTestSettings(
-                endSignal, endSignalSize, beginSignal, beginSignalSize, recFilePath);
+                endSignal, endSignalSizeInBytes, beginSignal, beginSignalSizeInBytes, recFilePath);
             runExperiment(mApi, settings);
           }
         });
@@ -232,8 +233,8 @@ public class MainActivity extends AppCompatActivity {
         mTimeBetweenSignals = -1;
 
         // pack all the info together into settings
-        final TestSettings settings =
-            buildTestSettings(endSignal, endSignalSize, beginSignal, beginSignalSize, recFilePath);
+        final TestSettings settings = buildTestSettings(
+            endSignal, endSignalSizeInBytes, beginSignal, beginSignalSizeInBytes, recFilePath);
 
         // open the midi device
         midiManager.openDevice(mMidiDeviceInfo, new MidiManager.OnDeviceOpenedListener() {
