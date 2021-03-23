@@ -44,9 +44,10 @@ public class MainActivity extends AppCompatActivity {
   String mApi = AAUDIO;
   int mJavaaudioPerformanceMode = 0;
   boolean mMidiMode = false;
-  ListView mDeviceListView;
+  int mMidiId = -1;
   ArrayAdapter<String> mMidiDevices;
-  MidiManager mMidiManager;
+  ;
+  MidiDeviceInfo mMidiDeviceInfo;
   static {
     System.loadLibrary("audiolat");
   }
@@ -108,15 +109,14 @@ public class MainActivity extends AppCompatActivity {
         }
         if (extras.containsKey("midi")) {
           mMidiMode = true;
-        } else {
+        }
+        if (extras.containsKey("midiid")) {
+          String midiid = extras.getString("midiid");
+          mMidiId = Integer.parseInt(midiid);
         }
       }
 
-      if (mMidiMode) {
-        setContentView(R.layout.activity_midi);
-      } else {
-        setContentView(R.layout.activity_main);
-      }
+      setContentView(R.layout.activity_main);
       String file_path = "/sdcard/audiolat";
 
       android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
@@ -168,6 +168,50 @@ public class MainActivity extends AppCompatActivity {
         });
         t.start();
       } else {
+        MidiManager mMidiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
+        mHandler = Handler.createAsync(getMainLooper());
+
+        // check midi id
+        boolean foundMidiId = false;
+        MidiDeviceInfo[] infos = mMidiManager.getDevices();
+        for (MidiDeviceInfo info : infos) {
+          Bundle bundle = info.getProperties();
+          Log.d(LOG_ID,
+              "MidiDeviceInfo { "
+                  + "id: " + info.getId() + " "
+                  + "inputPortCount() : " + info.getInputPortCount() + " "
+                  + "outputPortCount() : " + info.getOutputPortCount() + " "
+                  + "product: " + bundle.get("product").toString() + " "
+                  + "}");
+          if (mMidiId == -1) {
+            Log.d(LOG_ID,
+                "default midiid mapped to first device "
+                    + " "
+                    + "midiid: " + info.getId() + " "
+                    + "product: " + bundle.get("product").toString());
+            mMidiId = info.getId();
+          }
+          if (info.getId() == mMidiId) {
+            // found it
+            foundMidiId = true;
+            mMidiDeviceInfo = info;
+            // now check there are valid output ports
+            if (info.getOutputPortCount() <= 0) {
+              Log.e(LOG_ID,
+                  "MidiDeviceInfo invalid output port count "
+                      + "id: " + info.getId() + " "
+                      + "outputPortCount() : " + info.getOutputPortCount());
+              System.exit(-1);
+            }
+            // do not break so that we print all the MidiDeviceInfo's
+          }
+        }
+        if (!foundMidiId) {
+          Log.e(LOG_ID,
+              "MidiDeviceInfo invalid midiid "
+                  + "midiid: " + mMidiId + " ");
+          System.exit(-1);
+        }
         // pack all the info together into settings
         final TestSettings settings = new TestSettings();
         settings.endSignal = endSignal;
@@ -183,85 +227,40 @@ public class MainActivity extends AppCompatActivity {
         settings.timeBetweenSignals = -1; // no automatic playback please
         settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
 
-        mMidiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
-        mHandler = Handler.createAsync(getMainLooper());
-        mMidiManager.registerDeviceCallback(new MidiManager.DeviceCallback() {
-          public void onDeviceAdded(MidiDeviceInfo device) {
-            populateMidiDeviceList();
-          }
-
-          public void onDeviceRemoved(MidiDeviceInfo device) {
-            populateMidiDeviceList();
-          }
-        }, mHandler);
-        mDeviceListView = findViewById(R.id.deviceList);
-        mDeviceListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        // open the midi device
+        mMidiManager.openDevice(mMidiDeviceInfo, new MidiManager.OnDeviceOpenedListener() {
           @Override
-          public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-            String[] device_desc =
-                mDeviceListView.getItemAtPosition(position).toString().split("-");
-            int dev_id = Integer.valueOf(device_desc[1]);
-
-            MidiDeviceInfo[] infos = mMidiManager.getDevices();
-            for (MidiDeviceInfo info : infos) {
-              if (info.getId() == dev_id) {
-                if (info.getOutputPortCount() > 0) {
-                  mMidiManager.openDevice(info, new MidiManager.OnDeviceOpenedListener() {
-                    @Override
-                    public void onDeviceOpened(MidiDevice device) {
-                      // Just open the first port (and in most cases the only one)
-                      MidiOutputPort output = device.openOutputPort(0);
-                      if (output != null) {
-                        output.onConnect(new MidiReceiver() {
-                          @Override
-                          public void onSend(byte[] msg, int offset, int count, long timestamp)
-                              throws IOException {
-                            midiSignal(timestamp);
-                            long time = System.nanoTime();
-                            Log.d(LOG_ID,
-                                "Got midi: timestamp = " + timestamp + " sys time " + time
-                                    + " diff: " + (time - timestamp));
-                          }
-                        });
-                      } else {
-                        Log.d(LOG_ID, "Failed to first port");
-                      }
-                    }
-                  }, mHandler);
-
-                  (new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                      runExperiment(mApi, settings);
-                    }
-                  })).start();
-
-                } else {
-                  Log.d(LOG_ID, "No output ports available");
+          public void onDeviceOpened(MidiDevice device) {
+            // Just open the first port (and in most cases the only one)
+            MidiOutputPort output = device.openOutputPort(0);
+            if (output != null) {
+              output.onConnect(new MidiReceiver() {
+                @Override
+                public void onSend(byte[] msg, int offset, int count, long timestamp)
+                    throws IOException {
+                  midiSignal(timestamp);
+                  long time = System.nanoTime();
+                  Log.d(LOG_ID,
+                      "Got midi: timestamp = " + timestamp + " sys time " + time
+                          + " diff: " + (time - timestamp));
                 }
-              }
+              });
+            } else {
+              Log.d(LOG_ID, "Failed to first port");
             }
           }
-        });
-
-        populateMidiDeviceList();
+        }, mHandler);
+        (new Thread(new Runnable() {
+          @Override
+          public void run() {
+            runExperiment(mApi, settings);
+          }
+        })).start();
       }
 
     } catch (IOException e) {
       e.printStackTrace();
     }
-  }
-
-  void populateMidiDeviceList() {
-    MidiDeviceInfo[] infos = mMidiManager.getDevices();
-    ArrayList<String> devices = new ArrayList<>();
-    for (MidiDeviceInfo info : infos) {
-      Bundle bundle = info.getProperties();
-      devices.add(bundle.get("product").toString() + "-" + info.getId());
-    }
-    mMidiDevices =
-        new ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, devices);
-    mDeviceListView.setAdapter(mMidiDevices);
   }
 
   private String setupSignalSource() {
