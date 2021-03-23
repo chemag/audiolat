@@ -14,7 +14,7 @@
   __android_log_print(ANDROID_LOG_DEBUG, "audiolat", __VA_ARGS__)
 
 static bool running = false;
-static long midi_timestamp = -1;
+static long last_midi_nanotime = -1;
 struct callback_data {
   FILE *output_file_descriptor;
   AAudioStream *record_stream;
@@ -35,8 +35,6 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   static int playout_num_frames_remaining = 0;
   static int record_num_frames_remaining = 0;
   static float last_ts = 0;
-  struct timespec time;
-  clock_gettime(CLOCK_MONOTONIC, &time);
   struct callback_data *cb_data = (struct callback_data *)userData;
   aaudio_stream_state_t playout_state =
       AAudioStream_getState(cb_data->playout_stream);
@@ -121,19 +119,29 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     // playout
     LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
     int playout_buffer_offset = 0;
-    if (midi_timestamp > 0 && record_num_frames_remaining <= 0) {
+    if (last_midi_nanotime > 0 && record_num_frames_remaining <= 0) {
       playout_num_frames_remaining = cb_data->end_signal_size;
       LOGD("Set play frame rem to : %d", playout_num_frames_remaining);
-      long nano = time.tv_sec * 1000000000 + time.tv_nsec;
+      struct timespec time;
+      clock_gettime(CLOCK_MONOTONIC, &time);
+      long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
       if (record_num_frames_remaining > 0) {
         LOGD(
-            "midi triggered but we are still playing: %ld curr time: %ld, "
-            "delay: %ld",
-            midi_timestamp, nano, (nano - midi_timestamp));
+            "playout midi triggered but we are still playing "
+            "last_midi_nanotime: %ld "
+            "current_nanotime: %ld "
+            "difference: %ld",
+            last_midi_nanotime, current_nanotime,
+            (current_nanotime - last_midi_nanotime));
       } else
-        LOGD("midi triggered: %ld curr time: %ld, delay: %ld", midi_timestamp,
-             nano, (nano - midi_timestamp));
-      midi_timestamp = -1;
+        LOGD(
+            "playout midi triggered in full "
+            "last_midi_nanotime: %ld "
+            "current_nanotime: %ld "
+            "difference: %ld",
+            last_midi_nanotime, current_nanotime,
+            (current_nanotime - last_midi_nanotime));
+      last_midi_nanotime = -1;
     }
     if ((playout_num_frames_remaining > 0) &&
         (playout_state == AAUDIO_STREAM_STATE_STARTED)) {
@@ -201,7 +209,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_facebook_audiolat_MainActivity_midiSignal(JNIEnv *env,
                                                    jobject /* this */,
                                                    jlong nanotime) {
-  midi_timestamp = nanotime;
+  last_midi_nanotime = nanotime;
 }
 // main experiment function
 extern "C" JNIEXPORT jint JNICALL

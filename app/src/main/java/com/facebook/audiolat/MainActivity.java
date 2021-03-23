@@ -62,14 +62,13 @@ public class MainActivity extends AppCompatActivity {
       Log.d(LOG_ID,
           "MidiDeviceInfo { "
               + "id: " + info.getId() + " "
-              + "inputPortCount() : " + info.getInputPortCount() + " "
-              + "outputPortCount() : " + info.getOutputPortCount() + " "
+              + "inputPortCount(): " + info.getInputPortCount() + " "
+              + "outputPortCount(): " + info.getOutputPortCount() + " "
               + "product: " + bundle.get("product").toString() + " "
               + "}");
       if (mMidiId == -1) {
         Log.d(LOG_ID,
             "default midiid mapped to first device "
-                + " "
                 + "midiid: " + info.getId() + " "
                 + "product: " + bundle.get("product").toString());
         mMidiId = info.getId();
@@ -92,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
     if (!foundMidiId) {
       Log.e(LOG_ID,
           "MidiDeviceInfo invalid midiid "
-              + "midiid: " + mMidiId + " ");
+              + "midiid: " + mMidiId);
       System.exit(-1);
     }
   }
@@ -244,10 +243,12 @@ public class MainActivity extends AppCompatActivity {
                 public void onSend(byte[] msg, int offset, int count, long timestamp)
                     throws IOException {
                   midiSignal(timestamp);
-                  long time = System.nanoTime();
+                  long nanoTime = System.nanoTime();
                   Log.d(LOG_ID,
-                      "Got midi: timestamp = " + timestamp + " sys time " + time
-                          + " diff: " + (time - timestamp));
+                      "received midi data: "
+                          + "timestamp: " + timestamp + " "
+                          + "nanoTime: " + nanoTime + " "
+                          + "diff: " + (nanoTime - timestamp));
                 }
               });
             } else {
