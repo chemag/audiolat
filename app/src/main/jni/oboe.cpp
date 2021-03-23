@@ -13,7 +13,7 @@
   __android_log_print(ANDROID_LOG_DEBUG, "audiolat", __VA_ARGS__)
 
 static bool running = false;
-static long midi_timestamp = -1;
+static long last_midi_nanotime = -1;
 
 struct callback_data {
   FILE *output_file_descriptor;
@@ -38,8 +38,6 @@ class AudioCallback : public oboe::AudioStreamCallback {
     static int playout_num_frames_remaining = 0;
     static int record_num_frames_remaining = 0;
     static float last_ts = 0;
-    struct timespec time;
-    clock_gettime(CLOCK_MONOTONIC, &time);
     float time_sec = (float)written_frames / (float)cb_data->samplerate;
 
     LOGD(
@@ -123,19 +121,29 @@ class AudioCallback : public oboe::AudioStreamCallback {
       // playout
       LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
       int playout_buffer_offset = 0;
-      if (midi_timestamp > 0 && record_num_frames_remaining <= 0) {
+      if (last_midi_nanotime > 0 && record_num_frames_remaining <= 0) {
         playout_num_frames_remaining = cb_data->end_signal_size;
         LOGD("Set play frame rem to : %d", playout_num_frames_remaining);
-        long nano = time.tv_sec * 1000000000 + time.tv_nsec;
+        struct timespec time;
+        clock_gettime(CLOCK_MONOTONIC, &time);
+        long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
         if (record_num_frames_remaining > 0) {
           LOGD(
-              "midi triggered but we are still playing: %ld curr time: %ld, "
-              "delay: %ld",
-              midi_timestamp, nano, (nano - midi_timestamp));
+              "playout midi triggered but we are still playing "
+              "last_midi_nanotime: %ld "
+              "current_nanotime: %ld "
+              "difference: %ld",
+              last_midi_nanotime, current_nanotime,
+              (current_nanotime - last_midi_nanotime));
         } else
-          LOGD("midi triggered: %ld curr time: %ld, delay: %ld", midi_timestamp,
-               nano, (nano - midi_timestamp));
-        midi_timestamp = -1;
+          LOGD(
+              "playout midi triggered in full "
+              "last_midi_nanotime: %ld "
+              "current_nanotime: %ld "
+              "difference: %ld",
+              last_midi_nanotime, current_nanotime,
+              (current_nanotime - last_midi_nanotime));
+        last_midi_nanotime = -1;
       }
       if (playout_num_frames_remaining > 0) {
         // we are in the middle of playing the end signal:
@@ -192,17 +200,13 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_facebook_audiolat_MainActivity_oboeMidiSignal(JNIEnv *env,
                                                        jobject /* this */,
                                                        jlong nanotime) {
-  midi_timestamp = nanotime;
+  last_midi_nanotime = nanotime;
 }
 
 extern "C" JNIEXPORT jint JNICALL
 Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
                                                 jobject settings) {
-  LOGD("Java_com_facebook_audiolat_MainActivity_runOboe!!!");
-
-  int16_t *end_signal_buffer = nullptr;
-  int16_t *begin_signal_buffer = nullptr;
-
+  // unpack the test utils
   jclass cSettings = env->GetObjectClass(settings);
   jfieldID fid =
       env->GetFieldID(cSettings, "endSignal", "Ljava/nio/ByteBuffer;");
@@ -230,22 +234,19 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
   fid = env->GetFieldID(cSettings, "timeBetweenSignals", "I");
   jint time_between_signals = env->GetIntField(settings, fid);
 
-  struct callback_data cb_data;
-
   running = true;
+
+  struct callback_data cb_data;
   memset(&cb_data, 0, sizeof(struct callback_data));
   LOGD("** SAMPLE RATE == %d **", sample_rate);
 
   oboe::AudioStreamBuilder builder;
-  std::shared_ptr<oboe::AudioStream> play_stream = NULL;
-  std::shared_ptr<oboe::AudioStream> rec_stream = NULL;
+  std::shared_ptr<oboe::AudioStream> playout_stream = nullptr;
+  std::shared_ptr<oboe::AudioStream> record_stream = nullptr;
   AudioCallback audioCallback;
   oboe::Result result;
-  oboe::StreamState rec_state;
-  oboe::StreamState play_state;
-
-  memset(&cb_data, 0, sizeof(struct callback_data));
-  LOGD("** SAMPLE RATE == %d **", sample_rate);
+  int16_t *end_signal_buffer = nullptr;
+  int16_t *begin_signal_buffer = nullptr;
 
   // open the output file
   const char *output_file_name = env->GetStringUTFChars(output_file_path, 0);
@@ -268,8 +269,7 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
     return -1;
   }
 
-  // --- audio player
-
+  // set up the playout (downlink, speaker) audio stream
   // builder.setDeviceId(AAUDIO_UNSPECIFIED);  // more of this
   // later...device_id);
   builder.setDirection(oboe::Direction::Output);
@@ -283,32 +283,32 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
   audioCallback.setData(&cb_data);
   builder.setCallback(&audioCallback);
 
-  // Streams
-  result = builder.openStream(play_stream);
+  result = builder.openStream(playout_stream);
   LOGD("Open play stream: %d, audio api: %d", result,
-       play_stream->getAudioApi());
+       playout_stream->getAudioApi());
   if (result != oboe::Result::OK) {
     LOGD("Failed to create open play stream");
     goto cleanup;
   }
 
-  // --- audio recorder
+  // set up the record (uplink, mic) audio stream
   builder.setDirection(oboe::Direction::Input);
   builder.setInputPreset(oboe::InputPreset::Unprocessed);
   builder.setBufferCapacityInFrames(64);
 
   builder.setCallback(&audioCallback);
 
-  result = builder.openStream(rec_stream);
-  LOGD("Open rec stream: %d, audio api: %d", result, rec_stream->getAudioApi());
+  result = builder.openStream(record_stream);
+  LOGD("Open rec stream: %d, audio api: %d", result,
+       record_stream->getAudioApi());
   if (result != oboe::Result::OK) {
     LOGD("Failed to create open rec stream");
     goto cleanup;
   }
 
-  play_stream->setBufferSizeInFrames(playout_buffer_size);
-  rec_stream->setBufferSizeInFrames(record_buffer_size);
-  log_current_settings(&(*play_stream), &(*rec_stream));
+  playout_stream->setBufferSizeInFrames(playout_buffer_size);
+  record_stream->setBufferSizeInFrames(record_buffer_size);
+  log_current_settings(&(*playout_stream), &(*record_stream));
   // set the callback data
   cb_data.output_file_descriptor = output_file_descriptor;
   cb_data.end_signal = end_signal_buffer;
@@ -319,14 +319,15 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
   cb_data.timeout = timeout;
   cb_data.time_between_signals = time_between_signals;
 
+  // start the streams
   LOGD("Rec Start stream");
-  result = rec_stream->requestStart();
+  result = record_stream->requestStart();
   if (result != oboe::Result::OK) {
     LOGD("Failed to create start rec stream");
     goto cleanup;
   }
   LOGD("Play Start stream");
-  result = play_stream->requestStart();
+  result = playout_stream->requestStart();
   if (result != oboe::Result::OK) {
     LOGD("Failed to start play stream");
     goto cleanup;
@@ -336,14 +337,14 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
     sleep(2);
   }
 
-  rec_stream->requestStop();
-  play_stream->requestStop();
+  record_stream->requestStop();
+  playout_stream->requestStop();
   fclose(output_file_descriptor);
 
 cleanup:
   LOGD("Cleanup");
-  if (play_stream) play_stream->close();
-  if (rec_stream) rec_stream->close();
+  if (playout_stream) playout_stream->close();
+  if (record_stream) record_stream->close();
 
   return 0;
 }

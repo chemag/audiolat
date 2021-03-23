@@ -211,19 +211,12 @@ Java_com_facebook_audiolat_MainActivity_aaudioMidiSignal(JNIEnv *env,
                                                          jlong nanotime) {
   last_midi_nanotime = nanotime;
 }
+
 // main experiment function
 extern "C" JNIEXPORT jint JNICALL
 Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
                                                   jobject /* this */,
                                                   jobject settings) {
-  aaudio_result_t result;
-  AAudioStream *playout_stream = nullptr;
-  AAudioStream *record_stream = nullptr;
-  AAudioStreamBuilder *playout_builder = nullptr;
-  AAudioStreamBuilder *record_builder = nullptr;
-  int16_t *end_signal_buffer = nullptr;
-  int16_t *begin_signal_buffer = nullptr;
-
   // unpack the test utils
   jclass cSettings = env->GetObjectClass(settings);
   jfieldID fid =
@@ -257,6 +250,14 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   struct callback_data cb_data;
   memset(&cb_data, 0, sizeof(struct callback_data));
   LOGD("** SAMPLE RATE == %d **", sample_rate);
+
+  aaudio_result_t result;
+  AAudioStream *playout_stream = nullptr;
+  AAudioStream *record_stream = nullptr;
+  AAudioStreamBuilder *playout_builder = nullptr;
+  AAudioStreamBuilder *record_builder = nullptr;
+  int16_t *end_signal_buffer = nullptr;
+  int16_t *begin_signal_buffer = nullptr;
 
   // open the output file
   const char *output_file_name = env->GetStringUTFChars(output_file_path, 0);
