@@ -13,13 +13,12 @@ import android.media.midi.MidiReceiver;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 
 public class MainActivity extends AppCompatActivity {
   public static final String LOG_ID = "audiolat";
@@ -372,10 +371,10 @@ public class MainActivity extends AppCompatActivity {
       int status = runOboe(settings);
       Log.d(LOG_ID, "Done, status = " + status);
     } else if (api.equals(JAVAAUDIO)) {
-       Log.d(LOG_ID, "Calling java (JavaAudio) API");
+      Log.d(LOG_ID, "Calling java (JavaAudio) API");
       mJavaAudio = new JavaAudio();
       mJavaAudio.runJavaAudio(this, settings);
-     }
+    }
     Log.d(LOG_ID, "Done");
 
     System.exit(0);
