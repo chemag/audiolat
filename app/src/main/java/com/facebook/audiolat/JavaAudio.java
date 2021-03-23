@@ -22,6 +22,10 @@ import java.nio.ByteBuffer;
 
 public class JavaAudio {
   public static final String LOG_ID = "audiolat";
+  private long midi_timestamp = -1;
+  public void javaMidiSignal(long nanotime) {
+    midi_timestamp = nanotime;
+  }
 
   public void runJavaAudio(final Context context, final TestSettings settings) {
     Log.d(LOG_ID, "Start java experiment");
@@ -97,11 +101,7 @@ public class JavaAudio {
       }
 
       @Override
-      public void onPeriodicNotification(AudioRecord audioRecord) {
-        //  AudioTimestamp ts = new AudioTimestamp();
-        //   Log.d(LOG_ID, "onPeriodicNotification: " + audioRecord.getTimestamp(ts,
-        //   AudioTimestamp.TIMEBASE_MONOTONIC));
-      }
+      public void onPeriodicNotification(AudioRecord audioRecord) {}
     });
 
     recorder.setNotificationMarkerPosition(settings.sampleRate * settings.timeout);
@@ -132,7 +132,7 @@ public class JavaAudio {
                   written_frames, time_sec, last_ts, rec_buffer_index));
           if (read > 0) {
             try {
-              if (time_sec - last_ts > 2 || rec_buffer_index > 0) {
+              if (time_sec - last_ts > settings.timeBetweenSignals || rec_buffer_index > 0) {
                 // signal_size in bytes
                 int signal_size = (read > settings.beginSignalSize * 2 - rec_buffer_index)
                     ? settings.beginSignalSize * 2 - rec_buffer_index
@@ -150,13 +150,19 @@ public class JavaAudio {
                   fos.write(settings.beginSignal.array(), 0, signal_size);
                 }
 
-                // currentData.put(audioData, recIndex, read);
-                // player.write(buffer, 0, buffer.length);
-                if (rec_buffer_index == 0) {
+                if ((settings.timeBetweenSignals > 0 && rec_buffer_index == 0) ||
+                        (midi_timestamp > 0)) {
+                  long nano = System.nanoTime();
                   Log.d(LOG_ID, "Start playing signal");
                   player.stop();
                   player.setPlaybackHeadPosition(0);
                   player.play();
+                  if (midi_timestamp > 0) {
+                    Log.d(LOG_ID, String.format("midi triggered: %d curr time: %d, delay: %d",
+                                                midi_timestamp, nano, (nano - midi_timestamp)));
+
+                    midi_timestamp = 0;
+                  }
                 }
                 rec_buffer_index += signal_size;
                 last_ts = time_sec;

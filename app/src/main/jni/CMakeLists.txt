@@ -21,7 +21,7 @@ add_library( # Sets the name of the library.
              SHARED
 
              # Provides a relative path to your source file(s).
-            aaudio.cpp
+            aaudio.cpp oboe.cpp
             )
 
 # Searches for a specified prebuilt library and stores the path as a
@@ -54,4 +54,5 @@ target_link_libraries( # Specifies the target library.
                         audiolat
                        ${log-lib}
                        ${aaudio-lib}
+                        oboe::oboe
                        )

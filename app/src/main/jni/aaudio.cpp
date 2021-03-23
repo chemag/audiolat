@@ -198,7 +198,7 @@ void log_current_settings(AAudioStream *playout_stream,
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_facebook_audiolat_MainActivity_midiSignal(JNIEnv *env,
+Java_com_facebook_audiolat_MainActivity_aaudioMidiSignal(JNIEnv *env,
                                                    jobject /* this */,
                                                    jlong nanotime) {
   midi_timestamp = nanotime;
