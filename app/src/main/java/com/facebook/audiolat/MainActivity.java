@@ -57,6 +57,11 @@ public class MainActivity extends AppCompatActivity {
     // check midi id
     boolean foundMidiId = false;
     MidiDeviceInfo[] infos = midiManager.getDevices();
+    // check there is at least a valid midi id
+    if (infos.length < 1) {
+      Log.e(LOG_ID, "MidiDeviceInfo no midi devices available");
+      System.exit(-1);
+    }
     for (MidiDeviceInfo info : infos) {
       Bundle bundle = info.getProperties();
       Log.d(LOG_ID,
