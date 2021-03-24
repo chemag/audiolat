@@ -46,6 +46,8 @@ In the post-experiment analysis, we look for pairs of begin and end signals in t
 
 The exact operation of the downlink (midi) experiment is as follows.
 
+Unlike the previous experiment, this one requires an external midi device. We have used an [Alesis SamplePad 4](https://www.alesis.com/products/view2/samplepad-4) and a drum stick.
+
 * (1) we open 2 audio streams, one that records audio from the mic (uplink/input direction), and one that plays audio into the speaker (downlink/output direction). Each of the audio streams requires a callback function, which will be called every time the mic has new data ("record" stream), and every time the speaker needs new data ("playout" stream). The callback function includes as parameters:
   * (1.1) the data being captured, with its length (in number of frames) for the record stream
   * (1.2) an empty buffer for the app to provide the data being requested, with the required length (in number of frames), for the playout stream.
@@ -54,11 +56,15 @@ We also open a file stream where we store audio samples.
 
 * (2) in the common operation, whenever we get a record stream callback, we just copy the data (the mic input) to the file stream. Whenever we get a playout stream callback, we provide silence into the output data (the speaker output).
 
-* (3) when the use hits the drum pad with the drum stick, we detect the event in a playout callback. We use that event to replace the silence with a well-known signal called "end". This causes the "end" signal to be played at the speaker.
+* (3) when the use hits the drum pad with the drum stick, it generates an actual sound itself. We call this the "begin" signal. The midi event iself is detected in a playout callback. We use it to replace the silence with a well-known signal (the "end" signal). This causes the "end" signal to be played at the speaker.
 
-At some point both the original hitting of the drum stick (the "begin" signal) and the "end" signal get captured by the mic, and dumped into the file stream.
+* (4) once the experiment is finished, we analyze the file stream, looking for poccurrences of both the begin and the end signals.
 
-* (4) once the experiment is finished, we analyze the file stream, looking for poccurrences of both the begin and the end signals. We assume that the begin signal was injected with zero latency (as we are copying it directly to the output stream), but that the end signal went through the speaker, then the mic, and then the file. We assume the e2m latency of the system to be `timestamp_end - timestamp_begin`.
+Note that:
+  * (4.1.) We assume that the begin signal in the air (the actual hitting of the pad) and the injection of the end signal in the speaker happen at the same time. In other words, that the latency of the midi device is 0, at least when compared to uplink and downlink latencies.
+  * (4.2.) Both the begin and the end signal pass through the DUT mic before being captured. While the mic latency is significative, we assume that it is the same latency for both signals, so we can ignore it.
+
+We assume the downlink-only latency of the system to be `timestamp_end - timestamp_begin`.
 
 ![Operation Details](doc/audio.latency_checker_midi.png)
 
@@ -303,35 +309,3 @@ Empty DataFrame
 Columns: [time, delay, file, local max level, file max level, rms]
 Index: []
 ```
-
-
-The script has found 11 occurrences of the begin signal, and 5 occurrences of the end signal. If we match the closests ones, we find the following pairs:
-
-| begin | end   | `audio_latency` |
-| ---   | ---   | ---             |
-|  2.04 |  2.17 | 130 ms          |
-|  4.04 |  4.17 | 130 ms          |
-|  6.06 |  6.2  | 140 ms          |
-| 12.1  | 12.24 | 140 ms          |
-| 14.12 | 14.26 | 140 ms          |
-
-Or an average of 140 ms audio latency.
-
-The analyzer also produces a csv file, which you can run using a script:
-
-```
-$ ./scripts/calc_delay.py audiolat_chirp2_16k_300ms.raw.wav.csv
-2.17 sec
-4.17 sec
-6.2 sec
-12.24 sec
-14.26 sec
-Average for audiolat_chirp2_16k_300ms.raw.wav.csv: 138.18 ms
-```
-
-As an alternative, we provide a script that does the whole process in a single commands:
-
-```
-$ ./scripts/run_test.sh SAMPLERATE TEST_LENGTH_SECS REC_BUFFER_SIZE_SAMPLES PLAY_BUFFER_SIZE_SAMPLES
-```
-
