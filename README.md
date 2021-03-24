@@ -90,6 +90,9 @@ We do not provide an implementation using
 [OpenSLES](https://www.khronos.org/opensles/).
 
 
+We find that the 3 Audio APIs work better in android 10 and later devices.
+
+
 # 5. Operation
 
 ## 5.1. Prerequisites
@@ -287,25 +290,49 @@ $ ffmpeg -f s16le -acodec pcm_s16le -ac 1 -ar 48000 -i audiolat_chirp2_48k_300ms
 Then, run the analysis in the wav file:
 
 ```
-$ ./scripts/find_transient.py -m ./audio/chirp2_48k_300ms.wav audiolat_chirp2_48k_300ms.raw.wav
+$ ./scripts/find_transient.py -m ./audio/chirp2_48k_300ms.wav audiolat_chirp2_48k_300ms.raw.wav -t 30
 ** Check for audiolat_chirp2_48k_300ms.raw.wav
 []
     sample       time  local max level  file max level    rms
-0    61138   1.273708        -3.824173       -0.000265 -26.77
-1   125378   2.612042        -0.000265       -0.000265 -26.77
-2   200127   4.169313        -2.474775       -0.000265 -26.77
-3   299113   6.231521        -0.935850       -0.000265 -26.77
-4   407401   8.487521        -7.375278       -0.000265 -26.77
-5   512007  10.666813        -0.000265       -0.000265 -26.77
-6   590391  12.299812        -5.483051       -0.000265 -26.77
-7   655787  13.662229        -9.635699       -0.000265 -26.77
-8   691119  14.398312        -6.678987       -0.000265 -26.77
-9   721346  15.028042       -11.188513       -0.000265 -26.77
-10  750533  15.636104        -4.903809       -0.000265 -26.77
-Empty DataFrame
-Columns: [sample, time, correlation]
-Index: []
-Empty DataFrame
-Columns: [time, delay, file, local max level, file max level, rms]
-Index: []
+0    20869   0.434771       -13.863021       -0.000265 -23.88
+1    51271   1.068146        -0.000265       -0.000265 -23.88
+2   125582   2.616292        -0.000265       -0.000265 -23.88
+3   163315   3.402396        -0.000265       -0.000265 -23.88
+4   201082   4.189208        -0.000265       -0.000265 -23.88
+5   238444   4.967583        -0.000265       -0.000265 -23.88
+6   277480   5.780833        -0.000265       -0.000265 -23.88
+7   316997   6.604104        -0.000265       -0.000265 -23.88
+8   352519   7.344146        -2.054749       -0.000265 -23.88
+9   385980   8.041250        -7.165305       -0.000265 -23.88
+10  421311   8.777313        -3.702753       -0.000265 -23.88
+11  455797   9.495771        -3.108876       -0.000265 -23.88
+12  491633  10.242354        -3.321505       -0.000265 -23.88
+13  531847  11.080146        -2.274097       -0.000265 -23.88
+14  569509  11.864771        -4.174067       -0.000265 -23.88
+15  605977  12.624521        -2.465616       -0.000265 -23.88
+16  643192  13.399833        -4.261514       -0.000265 -23.88
+17  680380  14.174583        -2.633050       -0.000265 -23.88
+18  722999  15.062479        -9.602005       -0.000265 -23.88
+19  760942  15.852958        -2.642028       -0.000265 -23.88
+   sample       time  correlation
+0   52875   1.101562           46
+1  127115   2.648229           39
+2  607488  12.656000           36
+    time  delay  ... file max level    rms
+0   0.43   0.67  ...           -0.0 -23.88
+1   2.62   0.03  ...           -0.0 -23.88
+2  11.86   0.79  ...           -0.0 -23.88
+
+[3 rows x 6 columns]
 ```
+
+The script generates a csv file with a "delay" column:
+
+```
+$ cat audiolat_chirp2_48k_300ms.raw.wav.peaks_match.csvtime,delay,file,local max level,file max level,rms
+0.43,0.67,audiolat_chirp2_48k_300ms.raw.wav,-13.86,-0.0,-23.88
+2.62,0.03,audiolat_chirp2_48k_300ms.raw.wav,-0.0,-0.0,-23.88
+11.86,0.79,audiolat_chirp2_48k_300ms.raw.wav,-4.17,-0.0,-23.88
+```
+
+Note there is a false positive in the second row.
