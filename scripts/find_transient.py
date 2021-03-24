@@ -144,7 +144,7 @@ def main():
         index = 0
         triggered = False
 
-        threshold = peak_level[0] - 18
+        threshold = peak_level[0] - 6
         # remove click
         print(str(audio_data[audio_data >= 1]))
         audio_data[audio_data >= 1] = 0
