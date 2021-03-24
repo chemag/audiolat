@@ -274,7 +274,7 @@ where the possible parameters are the same than in the full experiment, plus:
 03-23 16:31:00.871 12498 12498 D audiolat: MidiDeviceInfo { id: 4 inputPortCount(): 1 outputPortCount(): 1 product: SamplePad }
 ```
 
-Run the command, and hit the drum pad with a drum stick. You should hear a chirp (a signal of continuously increasing frequency) every time you hit the pad. Do 4 or 5, separated around 2 seconds.
+Run the command, and hit the drum pad with a drum stick around once every 3 seconds. You should hear a chirp (a signal of continuously increasing frequency) every time you hit the pad. Keep hitting the drum pad until the DUT stops playing the end signal.
 
 
 (2) Analyze results
