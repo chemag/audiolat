@@ -293,39 +293,27 @@ Then, run the analysis in the wav file:
 
 ```
 $ ./scripts/find_transient.py -m ./audio/chirp2_48k_300ms.wav audiolat_chirp2_48k_300ms.raw.wav -t 30
-** Check for audiolat_chirp2_48k_300ms.raw.wav
-[]
+** Check audiolat_chirp2_48k_300ms.raw.wav
     sample       time  local max level  file max level    rms
-0    20869   0.434771       -13.863021       -0.000265 -23.88
-1    51271   1.068146        -0.000265       -0.000265 -23.88
-2   125582   2.616292        -0.000265       -0.000265 -23.88
-3   163315   3.402396        -0.000265       -0.000265 -23.88
-4   201082   4.189208        -0.000265       -0.000265 -23.88
-5   238444   4.967583        -0.000265       -0.000265 -23.88
-6   277480   5.780833        -0.000265       -0.000265 -23.88
-7   316997   6.604104        -0.000265       -0.000265 -23.88
-8   352519   7.344146        -2.054749       -0.000265 -23.88
-9   385980   8.041250        -7.165305       -0.000265 -23.88
-10  421311   8.777313        -3.702753       -0.000265 -23.88
-11  455797   9.495771        -3.108876       -0.000265 -23.88
-12  491633  10.242354        -3.321505       -0.000265 -23.88
-13  531847  11.080146        -2.274097       -0.000265 -23.88
-14  569509  11.864771        -4.174067       -0.000265 -23.88
-15  605977  12.624521        -2.465616       -0.000265 -23.88
-16  643192  13.399833        -4.261514       -0.000265 -23.88
-17  680380  14.174583        -2.633050       -0.000265 -23.88
-18  722999  15.062479        -9.602005       -0.000265 -23.88
-19  760942  15.852958        -2.642028       -0.000265 -23.88
+0    14012   0.875750        -0.000265       -0.000265 -27.55
+1    50192   3.137000        -0.000265       -0.000265 -27.55
+2   100908   6.306750        -0.000265       -0.000265 -27.55
+3   149190   9.324375        -0.283431       -0.000265 -27.55
+4   186738  11.671125        -0.000265       -0.000265 -27.55
+5   247669  15.479313        -0.000265       -0.000265 -27.55
+6   279416  17.463500        -0.000265       -0.000265 -27.55
+7   335548  20.971750        -1.234378       -0.000265 -27.55
+8   370907  23.181687        -0.000265       -0.000265 -27.55
+9   411913  25.744563        -0.520236       -0.000265 -27.55
+10  456330  28.520625        -2.331111       -0.000265 -27.55
    sample       time  correlation
-0   52875   1.101562           46
-1  127115   2.648229           39
-2  607488  12.656000           36
-    time  delay  ... file max level    rms
-0   0.43   0.67  ...           -0.0 -23.88
-1   2.62   0.03  ...           -0.0 -23.88
-2  11.86   0.79  ...           -0.0 -23.88
-
-[3 rows x 6 columns]
+0   16449   1.028063           47
+1   52281   3.267562           56
+2  337882  21.117625           35
+    time  delay                                               file  local max level  file max level    rms
+0   0.88   0.15  ./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k....            -0.00            -0.0 -27.55
+1   3.14   0.13  ./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k....            -0.00            -0.0 -27.55
+2  20.97   0.15  ./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k....            -1.23            -0.0 -27.55
 ```
 
 The script looks first for occurrences of the end signal (the injected chirp). For each positive find, it will look backwards for something that may be a hit (backwards includes the range between 1 second and 5 ms before the end signal).
@@ -335,9 +323,10 @@ In this case, it found 3 occurrences of a begin signal slightly before the end o
 The analyzer also produces a csv file with the results (see "delay" column):
 
 ```
-$ cat audiolat_chirp2_48k_300ms.raw.wav.peaks_match.csvtime,delay,file,local max level,file max level,rms
-0.43,0.67,audiolat_chirp2_48k_300ms.raw.wav,-13.86,-0.0,-23.88
-2.62,0.03,audiolat_chirp2_48k_300ms.raw.wav,-0.0,-0.0,-23.88
-11.86,0.79,audiolat_chirp2_48k_300ms.raw.wav,-4.17,-0.0,-23.88
+$ cat audiolat_chirp2_48k_300ms.raw.wav.peaks_match.csv
+time,delay,file,local max level,file max level,rms
+0.88,0.15,./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k.exp_03.wav,-0.0,-0.0,-27.55
+3.14,0.13,./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k.exp_03.wav,-0.0,-0.0,-27.55
+20.97,0.15,./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k.exp_03.wav,-1.23,-0.0,-27.55
 ```
 

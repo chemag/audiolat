@@ -128,7 +128,7 @@ def main():
     rms = -100
 
     for input_name in options.files:
-        print(f'** Check for {input_name}')
+        print(f'** Check {input_name}')
         split_times = []
         if input_name[-3:] == 'wav':
             audiofile = sf.SoundFile(input_name, 'r')
