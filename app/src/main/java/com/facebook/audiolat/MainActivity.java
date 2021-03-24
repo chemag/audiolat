@@ -135,6 +135,11 @@ public class MainActivity extends AppCompatActivity {
       }
       if (extras.containsKey("api")) {
         mApi = extras.getString("api");
+        // check the value
+        if (!mApi.equals(AAUDIO) && !mApi.equals(OBOE) && !mApi.equals(JAVAAUDIO)) {
+          Log.e(LOG_ID, "invalid API type: \"" + mApi + "\"");
+          System.exit(-1);
+        }
       }
       if (extras.containsKey("atpm")) {
         String atpm = extras.getString("atpm");
