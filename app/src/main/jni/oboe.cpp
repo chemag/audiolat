@@ -123,7 +123,8 @@ class AudioCallback : public oboe::AudioStreamCallback {
       int playout_buffer_offset = 0;
       if (last_midi_nanotime > 0 && record_num_frames_remaining <= 0) {
         playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
-        LOGD("Set play frame rem to : %d", playout_num_frames_remaining);
+        LOGD("playout set playout_num_frames_remaining: %d",
+             playout_num_frames_remaining);
         struct timespec time;
         clock_gettime(CLOCK_MONOTONIC, &time);
         long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
@@ -284,7 +285,7 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
   builder.setCallback(&audioCallback);
 
   result = builder.openStream(playout_stream);
-  LOGD("Open play stream: %d, audio api: %d", result,
+  LOGD("Open playout stream: %d audio api: %d", result,
        playout_stream->getAudioApi());
   if (result != oboe::Result::OK) {
     LOGD("Failed to create open play stream");
@@ -299,7 +300,7 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
   builder.setCallback(&audioCallback);
 
   result = builder.openStream(record_stream);
-  LOGD("Open rec stream: %d, audio api: %d", result,
+  LOGD("Open record stream: %d, audio api: %d", result,
        record_stream->getAudioApi());
   if (result != oboe::Result::OK) {
     LOGD("Failed to create open rec stream");
@@ -308,7 +309,7 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
 
   playout_stream->setBufferSizeInFrames(playout_buffer_size_in_bytes / 2);
   record_stream->setBufferSizeInFrames(record_buffer_size_in_bytes / 2);
-  log_current_settings(&(*playout_stream), &(*record_stream));
+
   // set the callback data
   cb_data.output_file_descriptor = output_file_descriptor;
   cb_data.end_signal = end_signal_buffer;
@@ -319,30 +320,34 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
   cb_data.timeout = timeout;
   cb_data.time_between_signals = time_between_signals;
 
+  log_current_settings(&(*playout_stream), &(*record_stream));
+
   // start the streams
-  LOGD("Rec Start stream");
+  LOGD("record start stream");
   result = record_stream->requestStart();
   if (result != oboe::Result::OK) {
-    LOGD("Failed to create start rec stream");
+    LOGD("Failed to create start record stream");
     goto cleanup;
   }
-  LOGD("Play Start stream");
+  LOGD("playout start stream");
   result = playout_stream->requestStart();
   if (result != oboe::Result::OK) {
-    LOGD("Failed to start play stream");
+    LOGD("Failed to start playout stream");
     goto cleanup;
   }
 
+  // wait until it is done
   while (running) {
-    sleep(2);
+    sleep(1);
   }
 
+  // cleanup
   record_stream->requestStop();
   playout_stream->requestStop();
   fclose(output_file_descriptor);
 
 cleanup:
-  LOGD("Cleanup");
+  LOGD("cleanup");
   if (playout_stream) playout_stream->close();
   if (record_stream) record_stream->close();
 

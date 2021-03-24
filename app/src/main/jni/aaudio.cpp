@@ -121,7 +121,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
     int playout_buffer_offset = 0;
     if (last_midi_nanotime > 0 && record_num_frames_remaining <= 0) {
       playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
-      LOGD("Set play frame rem to : %d", playout_num_frames_remaining);
+      LOGD("playout set playout_num_frames_remaining: %d",
+           playout_num_frames_remaining);
       struct timespec time;
       clock_gettime(CLOCK_MONOTONIC, &time);
       long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
@@ -376,7 +377,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
 
   // wait until it is done
   while (running) {
-    sleep(2);
+    sleep(1);
   }
 
   // cleanup
@@ -386,7 +387,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   fclose(output_file_descriptor);
 
 cleanup:
-  LOGD("Cleanup");
+  LOGD("cleanup");
   if (playout_stream) AAudioStream_close(playout_stream);
   if (record_stream) AAudioStream_close(record_stream);
   if (playout_builder) AAudioStreamBuilder_delete(playout_builder);
