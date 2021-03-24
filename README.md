@@ -326,6 +326,8 @@ $ ./scripts/find_transient.py -m ./audio/chirp2_48k_300ms.wav audiolat_chirp2_48
 [3 rows x 6 columns]
 ```
 
+The script will look first for occurrences of the end signal first (the injectedchirp). For each positive find, it will look backwards for something that may be a hit.
+
 The script generates a csv file with a "delay" column:
 
 ```
