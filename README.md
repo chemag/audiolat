@@ -223,7 +223,9 @@ Append: 195809 @ 12.24 s, cc: 25
 Append: 228136 @ 14.26 s, cc: 40
 ```
 
-The script has found 11 occurrences of the begin signal, and 5 occurrences of the end signal. If we match the closests ones, we find the following pairs:
+The script looks for occurrences of both the being and end signals.
+
+In this case, the script has found 11 occurrences of the begin signal, and 5 occurrences of the end signal. If we match the closests ones, we find the following pairs:
 
 | begin | end   | `audio_latency` |
 | ---   | ---   | ---             |
@@ -326,9 +328,11 @@ $ ./scripts/find_transient.py -m ./audio/chirp2_48k_300ms.wav audiolat_chirp2_48
 [3 rows x 6 columns]
 ```
 
-The script will look first for occurrences of the end signal first (the injectedchirp). For each positive find, it will look backwards for something that may be a hit.
+The script looks first for occurrences of the end signal (the injected chirp). For each positive find, it will look backwards for something that may be a hit (backwards includes the range between 1 second and 5 ms before the end signal).
 
-The script generates a csv file with a "delay" column:
+In this case, it found 3 occurrences of a begin signal slightly before the end one. Note there is a false positive in the second row (delay 0.03).
+
+The analyzer also produces a csv file with the results (see "delay" column):
 
 ```
 $ cat audiolat_chirp2_48k_300ms.raw.wav.peaks_match.csvtime,delay,file,local max level,file max level,rms
@@ -337,4 +341,3 @@ $ cat audiolat_chirp2_48k_300ms.raw.wav.peaks_match.csvtime,delay,file,local max
 11.86,0.79,audiolat_chirp2_48k_300ms.raw.wav,-4.17,-0.0,-23.88
 ```
 
-Note there is a false positive in the second row.
