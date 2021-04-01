@@ -18,6 +18,12 @@ def floatToDB(val):
     else:
         return 20.0 * log10(val)
 
+def dBToFloat(val):
+    """"
+    Calculates a float value ranging from -1.0 to 1.0
+    Where 1.0 is 0dB
+    """
+    return 10 ** (val / 20.0)
 
 def audio_levels(audiofile, start=0, end=-1):
     """
@@ -86,7 +92,8 @@ def find_markers(options, dist_data, sampelrate):
     else:
         print('Only wav file supported')
         exit(0)
-
+    if options.limit_marker:
+        template = template[:int(options.limit_marker * sampelrate)]
     max_pos = 0
 
     read_len = int(1.5 * sampelrate)
@@ -101,8 +108,10 @@ def find_markers(options, dist_data, sampelrate):
         pos = index - max_pos
         if pos < 0:
             pos = 0
+        print(f" {cc} @ {pos / sampelrate}")
         if cc > options.threshold:
             time = pos / sampelrate
+            print(f"append {cc} @ {time}")
             split_times.append([pos, time, cc])
 
         last += read_len  # len(template)
@@ -121,6 +130,7 @@ def main():
     parser.add_argument('-m', '--marker')
     parser.add_argument('-l', '--leading', type=bool, default=False)
     parser.add_argument('-t', '--threshold', type=int, default=90)
+    parser.add_argument('--limit_marker', type=float, default=-1)
 
     options = parser.parse_args()
 
@@ -137,14 +147,17 @@ def main():
             exit(0)
 
         rms, peak_level, crest, bias = audio_levels(audiofile)
+        gain = dBToFloat(-6)/dBToFloat(peak_level[0])
+        print(f"gain         = {gain}")
         blocksize = int(0.5 * audiofile.samplerate)
         audiofile.seek(0)
-        audio_data = audiofile.read()
+        audio_data = audiofile.read() * gain
+
         markers = find_markers(options, audio_data, audiofile.samplerate)
         index = 0
         triggered = False
 
-        threshold = peak_level[0] - 6
+        threshold = peak_level[0] - 18
         # remove click
         print(str(audio_data[audio_data >= 1]))
         audio_data[audio_data >= 1] = 0
@@ -181,7 +194,7 @@ def main():
                 signals = data.loc[(data['time'] > time + 0.010) &
                                    (data['time'] < time + 1)]
             else:
-                # limit to one second and 10ms in the past
+                # limit to one second and 5ms in the past
                 signals = data.loc[(data['time'] < time - 0.005) &
                                    (data['time'] > time - 1)]
             if len(signals) > 0:

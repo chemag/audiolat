@@ -5,7 +5,8 @@ import java.nio.ByteBuffer;
 public class TestSettings {
   public int samplerate;
   public int timeout;
-  int deviceId;
+  int recordDeviceId;
+  int playoutDeviceId;
   ByteBuffer endSignal;
   int endSignalSizeInBytes;
   ByteBuffer beginSignal;

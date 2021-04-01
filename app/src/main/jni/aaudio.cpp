@@ -139,9 +139,9 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
             "playout midi triggered in full "
             "last_midi_nanotime: %ld "
             "current_nanotime: %ld "
-            "difference: %ld",
+            "difference: %ld ms",
             last_midi_nanotime, current_nanotime,
-            (current_nanotime - last_midi_nanotime));
+            (current_nanotime - last_midi_nanotime)/1000000);
       last_midi_nanotime = -1;
     }
     if ((playout_num_frames_remaining > 0) &&
@@ -233,7 +233,6 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   jint begin_signal_size_in_bytes = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "sampleRate", "I");
   jint sample_rate = env->GetIntField(settings, fid);
-  fid = env->GetFieldID(cSettings, "deviceId", "I");
   jint device_id = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "outputFilePath", "Ljava/lang/String;");
   jstring output_file_path = (jstring)env->GetObjectField(settings, fid);
@@ -247,6 +246,10 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   jint usage = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "timeBetweenSignals", "I");
   jint time_between_signals = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "recordDeviceId", "I");
+  jint record_device_id = env->GetIntField(settings, fid);
+  fid = env->GetFieldID(cSettings, "playoutDeviceId", "I");
+  jint playout_device_id = env->GetIntField(settings, fid);
 
   running = true;
 
@@ -261,6 +264,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   AAudioStreamBuilder *record_builder = nullptr;
   int16_t *end_signal_buffer = nullptr;
   int16_t *begin_signal_buffer = nullptr;
+  int playout_xrun = 0;
+  int record_xrun = 0;
 
   // open the output file
   const char *output_file_name = env->GetStringUTFChars(output_file_path, 0);
@@ -291,7 +296,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     goto cleanup;
   }
   // more of this later...device_id);
-  AAudioStreamBuilder_setDeviceId(playout_builder, AAUDIO_UNSPECIFIED);
+  AAudioStreamBuilder_setDeviceId(playout_builder, playout_device_id);
   AAudioStreamBuilder_setUsage(playout_builder, usage);
   AAudioStreamBuilder_setDirection(playout_builder, AAUDIO_DIRECTION_OUTPUT);
   // AAUDIO_SHARING_MODE_EXCLUSIVE no available
@@ -300,7 +305,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   AAudioStreamBuilder_setSampleRate(playout_builder, sample_rate);
   AAudioStreamBuilder_setChannelCount(playout_builder, 1);
   AAudioStreamBuilder_setFormat(playout_builder, AAUDIO_FORMAT_PCM_I16);
-  AAudioStreamBuilder_setBufferCapacityInFrames(playout_builder, 960);
+  AAudioStreamBuilder_setBufferCapacityInFrames(playout_builder, 64);
   AAudioStreamBuilder_setPerformanceMode(playout_builder,
                                          AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
   AAudioStreamBuilder_setDataCallback(playout_builder, dataCallback, &cb_data);
@@ -312,11 +317,10 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     LOGD("Failed to create record stream");
     goto cleanup;
   }
-  AAudioStreamBuilder_setDeviceId(record_builder, device_id);
+  AAudioStreamBuilder_setDeviceId(record_builder, record_device_id);
   AAudioStreamBuilder_setDirection(record_builder, AAUDIO_DIRECTION_INPUT);
   // AAUDIO_SHARING_MODE_EXCLUSIVE no available
-  AAudioStreamBuilder_setSharingMode(record_builder,
-                                     AAUDIO_SHARING_MODE_SHARED);
+
   AAudioStreamBuilder_setSampleRate(record_builder, sample_rate);
   AAudioStreamBuilder_setChannelCount(record_builder, 1);
   AAudioStreamBuilder_setFormat(record_builder, AAUDIO_FORMAT_PCM_I16);
@@ -325,19 +329,23 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   AAudioStreamBuilder_setBufferCapacityInFrames(record_builder, 64);
   AAudioStreamBuilder_setInputPreset(record_builder,
                                      AAUDIO_INPUT_PRESET_UNPROCESSED);
+
   AAudioStreamBuilder_setDataCallback(record_builder, dataCallback, &cb_data);
 
   // open both streams
   result = AAudioStreamBuilder_openStream(playout_builder, &playout_stream);
   LOGD("Open playout stream: %d", result);
   if (result) {
-    LOGD("Failed to create open playout stream");
+    LOGD("Failed to open playout stream");
     goto cleanup;
   }
+
+  AAudioStreamBuilder_setSharingMode(record_builder,
+                                     AAUDIO_SHARING_MODE_SHARED);
   result = AAudioStreamBuilder_openStream(record_builder, &record_stream);
   LOGD("Open record stream: %d", result);
   if (result) {
-    LOGD("Failed to create open record stream");
+    LOGD("Failed to open record stream");
     goto cleanup;
   }
 
@@ -380,6 +388,10 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     sleep(1);
   }
 
+  playout_xrun = AAudioStream_getXRunCount(playout_stream);
+  record_xrun = AAudioStream_getXRunCount(record_stream);
+  LOGD("playout xrun = %d", playout_xrun);
+  LOGD("record xrun = %d", record_xrun);
   // cleanup
   AAudioStream_requestStop(record_stream);
   AAudioStream_requestStop(playout_stream);

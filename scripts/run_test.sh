@@ -15,21 +15,28 @@ recbuff=$4
 api=$5
 signal=$6
 
+
 # <device>.aaudio.aec_on.agc_on.ns_on.cond_on.exp_<id>.csv 
 # <device>.aaudio.aec_off.agc_off.ns_off.cond_on.exp_<id>.csv
 test_id=$7 #.aaudio.aec_off.agc_off.ns_off.cond_on.exp_<id>
+midi=$8
 
 script=${BASH_SOURCE[0]}
 sdir=${script%/*}
 wdir=$(pwd)
-adb shell am force-stop com.facebook.audiolat
 files=$(adb shell ls /sdcard/audiolat*.raw)
 for file in ${files}; do
     adb shell rm "${file}"
 done
 capture_logcat audiolat_tmp.txt
+
+# -e midi ${midi}
 #PERFORMANCE_MODE_LOW_LATENCY 1
-adb shell am start -n com.facebook.audiolat/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}" -e api "${api}" -e signal "${signal}" -e usage 2 -e atm 1
+if [ -z ${midi} ]; then
+    adb shell am start -S -n com.facebook.audiolat/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}" -e api "${api}" -e signal "${signal}" -e usage 2 -e atpm 1
+else
+    adb shell am start -S -n com.facebook.audiolat/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}" -e api "${api}" -e signal "${signal}" -e usage 2 -e atpm 1 -e midi 1 -e midiid ${midi}
+fi
 sleep "${timeout}"
 # give me some startup margin
 sleep 1
@@ -49,12 +56,10 @@ begin_signal="${sdir}/../audio/begin_signal.wav"
 end_signal="${input#*audiolat_}"
 end_signal="${sdir}/../audio/${end_signal%*.raw}.wav"
 
-echo "find pulses"
-"${sdir}/find_pulses.py" "${begin_signal}" "${end_signal}" -i "${output}" -sr "${samplerate}" -t 35
-
-echo "calc delays"
-"${sdir}/calc_delay.py"  "${output}.csv" -o "${wdir}/${test_id}.match.csv" > "${match_log}"
-
+if [ -z ${midi} ]; then
+    "${sdir}/find_pulses.py" "${begin_signal}" "${end_signal}" -i "${output}" -sr "${samplerate}" -t 35
+    "${sdir}/calc_delay.py"  "${output}.csv" -o "${wdir}/${test_id}.match.csv" > "${match_log}"
+fi
 echo "parse data to ${test_id}.mean.csv"
 echo "${sdir}/parse_data.sh ${logfile} ${match_log} ${sampelrate} ${wdir}/${test_id}.mean.csv"
 device=$("${sdir}/parse_data.sh" "${logfile}" "${match_log}" "${sampelrate}" "${test_id}.mean.csv")
@@ -62,7 +67,10 @@ echo "Change names"
 mv ${output} ${device}.${test_id}.wav
 mv ${output}.csv ${device}.${test_id}.csv
 mv ${logfile} ${device}.${test_id}.logcat
-mv "${wdir}/${test_id}.match.csv" "${wdir}/${device}.${test_id}.match.csv"
+
+if ! [ -z ${midi} ]; then
+    find_transient.py -m "${end_signal}" -t 40 --limit_marker 0.01 "${device}.${test_id}.wav" 
+else
+    mv "${wdir}/${test_id}.match.csv" "${wdir}/${device}.${test_id}.match.csv"
+fi
 rm ${input}
-
-

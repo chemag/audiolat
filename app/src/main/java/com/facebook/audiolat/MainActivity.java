@@ -366,10 +366,18 @@ public class MainActivity extends AppCompatActivity {
       for (int rate : rates) {
         Log.d(LOG_ID, "-- ch.rate: " + rate);
       }
+
+      if (info.isSink() && info.getType() ==  AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+        settings.playoutDeviceId = info.getId();
+      } else if (info.isSource()  && info.getType() ==  AudioDeviceInfo.TYPE_BUILTIN_MIC) {
+          settings.playoutDeviceId = info.getId();
+      }
+
+      if (settings.playoutDeviceId != 0 && settings.recordDeviceId !=0){
+          break;
+      }
     }
 
-    AudioDeviceInfo info = adevs[0]; // Take the first (and best)
-    settings.deviceId = info.getId();
     if (api.equals(AAUDIO)) {
       Log.d(LOG_ID, "Calling native (AAudio) API");
       int status = runAAudio(settings);
