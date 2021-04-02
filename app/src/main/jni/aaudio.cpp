@@ -1,4 +1,5 @@
 #include <aaudio/AAudio.h>
+#include <amidi/AMidi.h>
 #include <android/log.h>
 #include <jni.h>
 #include <math.h>
@@ -15,6 +16,12 @@
 
 static bool running = false;
 static long last_midi_nanotime = -1;
+static int midi_port = 0;
+//AMidiDevice midiDevice;
+
+static AMidiDevice* midiDevice = NULL;
+static AMidiOutputPort* midiOutputPort(NULL);
+
 struct callback_data {
   FILE *output_file_descriptor;
   AAudioStream *record_stream;
@@ -31,149 +38,160 @@ struct callback_data {
 aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
                                            void *audioData,
                                            int32_t num_frames) {
-  static int written_frames = 0;
-  static int playout_num_frames_remaining = 0;
-  static int record_num_frames_remaining = 0;
-  static float last_ts = 0;
-  struct callback_data *cb_data = (struct callback_data *)userData;
-  aaudio_stream_state_t playout_state =
-      AAudioStream_getState(cb_data->playout_stream);
-  float time_sec = (float)written_frames / (float)cb_data->samplerate;
+    static int written_frames = 0;
+    static int playout_num_frames_remaining = 0;
+    static int record_num_frames_remaining = 0;
+    static float last_ts = 0;
+    static int64_t last_midi_ts = -1;
+    struct callback_data *cb_data = (struct callback_data *) userData;
+    aaudio_stream_state_t playout_state =
+            AAudioStream_getState(cb_data->playout_stream);
+    float time_sec = (float) written_frames / (float) cb_data->samplerate;
 
-  LOGD(
-      "dataCallback type: %s num_frames: %d time_sec: %.2f "
-      "playout_num_frames_remaining: %d record_num_frames_remaining: %d",
-      (stream == cb_data->record_stream) ? "record" : "playout", num_frames,
-      time_sec, playout_num_frames_remaining, record_num_frames_remaining);
-  if (stream == cb_data->record_stream) {
-    // recording
-    written_frames += num_frames;
-    if ((cb_data->time_between_signals > 0 &&
-         time_sec - last_ts > cb_data->time_between_signals)) {
-      // experiment start: we need, as soon as possible, to:
-      // 1. play out the end signal
-      playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
-      // 2. record the begin signal
-      record_num_frames_remaining = cb_data->begin_signal_size_in_frames;
-      // 3. set the time for the next experiment
-      last_ts = time_sec;
-      LOGD(
-          "experiment playout_num_frames_remaining: %d "
-          "record_num_frames_remaining: %d",
-          playout_num_frames_remaining, record_num_frames_remaining);
-    }
-    int record_buffer_offset = 0;
-    if (record_num_frames_remaining > 0 &&
-        record_num_frames_remaining < cb_data->begin_signal_size_in_frames) {
-      // we are in the middle of recording the begin signal:
-      // Let's write it on the left side
-      // +--------------------------------+
-      // |BBBB                            |
-      // +--------------------------------+
-      int num_frames_to_write =
-          std::min(record_num_frames_remaining, num_frames);
-      int begin_signal_offset =
-          cb_data->begin_signal_size_in_frames - record_num_frames_remaining;
-      LOGD("record source: begin num_frames: %d remaining: %d",
-           num_frames_to_write, record_num_frames_remaining);
-      fwrite(cb_data->begin_signal + begin_signal_offset,
-             (size_t)num_frames_to_write, sizeof(int16_t),
-             cb_data->output_file_descriptor);
-      num_frames -= num_frames_to_write;
-      record_num_frames_remaining -= num_frames_to_write;
-      record_buffer_offset += num_frames_to_write;
-    }
-    if (num_frames > record_num_frames_remaining) {
-      // Let's write the mic input
-      // +--------------------------------+
-      // |    MMMMMMMMMMMMMMMMMMMMMMMM    |
-      // +--------------------------------+
-      int num_frames_to_write = num_frames - record_num_frames_remaining;
-      LOGD("record source: input num_frames: %d", num_frames_to_write);
-      fwrite(((int16_t *)audioData) + record_buffer_offset, sizeof(int16_t),
-             (size_t)num_frames_to_write, cb_data->output_file_descriptor);
-      num_frames -= num_frames_to_write;
-    }
-    if (record_num_frames_remaining == cb_data->begin_signal_size_in_frames) {
-      // we are at the beginning of recording the begin signal:
-      // Let's write it on the right side
-      // +--------------------------------+
-      // |                            BBBB|
-      // +--------------------------------+
-      int num_frames_to_write =
-          std::min(record_num_frames_remaining, num_frames);
-      LOGD("record source: begin num_frames: %d remaining: %d",
-           num_frames_to_write, record_num_frames_remaining);
-      fwrite(cb_data->begin_signal, (size_t)num_frames_to_write,
-             sizeof(int16_t), cb_data->output_file_descriptor);
-      num_frames -= num_frames_to_write;
-      record_num_frames_remaining -= num_frames_to_write;
+    LOGD(
+            "dataCallback type: %s num_frames: %d time_sec: %.2f "
+            "playout_num_frames_remaining: %d record_num_frames_remaining: %d",
+            (stream == cb_data->record_stream) ? "record" : "playout", num_frames,
+            time_sec, playout_num_frames_remaining, record_num_frames_remaining);
+
+    // Read MIDI Data
+    const size_t MAX_BYTES_TO_RECEIVE = 128;
+    uint8_t incomingMessage[MAX_BYTES_TO_RECEIVE];
+    int32_t opcode;
+    size_t numBytesReceived;
+    int64_t timestamp;
+    ssize_t numMessagesReceived = AMidiOutputPort_receive(midiOutputPort,
+                                                          &opcode,
+                                                          incomingMessage,
+                                                          MAX_BYTES_TO_RECEIVE,
+                                                          &numBytesReceived,
+                                                          &timestamp);
+
+    if (numMessagesReceived > 0) {
+        if ((timestamp - last_midi_ts) / 1000000 > 1000) {
+            last_midi_ts = timestamp;
+
+            struct timespec time;
+            clock_gettime(CLOCK_MONOTONIC, &time);
+            long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
+                LOGD(
+                        "playout midi triggered in full "
+                        "last_midi_nanotime: %ld "
+                        "current_nanotime: %ld "
+                        "difference: %ld ms",
+                        last_midi_ts, current_nanotime,
+                        (current_nanotime - last_midi_ts) / 1000000);
+                playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
+
+        }
     }
 
-    LOGD("record written_frames: %d", written_frames);
-    if (time_sec > cb_data->timeout) {
-      running = false;
-    }
+    if (stream == cb_data->record_stream) {
+        // recording
+        written_frames += num_frames;
+        if ((cb_data->time_between_signals > 0 &&
+             time_sec - last_ts > cb_data->time_between_signals)) {
+            // experiment start: we need, as soon as possible, to:
+            // 1. play out the end signal
+            playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
+            // 2. record the begin signal
+            record_num_frames_remaining = cb_data->begin_signal_size_in_frames;
+            // 3. set the time for the next experiment
+            last_ts = time_sec;
+            LOGD(
+                    "experiment playout_num_frames_remaining: %d "
+                    "record_num_frames_remaining: %d",
+                    playout_num_frames_remaining, record_num_frames_remaining);
+        }
+        int record_buffer_offset = 0;
+        if (record_num_frames_remaining > 0 &&
+            record_num_frames_remaining < cb_data->begin_signal_size_in_frames) {
+            // we are in the middle of recording the begin signal:
+            // Let's write it on the left side
+            // +--------------------------------+
+            // |BBBB                            |
+            // +--------------------------------+
+            int num_frames_to_write =
+                    std::min(record_num_frames_remaining, num_frames);
+            int begin_signal_offset =
+                    cb_data->begin_signal_size_in_frames - record_num_frames_remaining;
+            LOGD("record source: begin num_frames: %d remaining: %d",
+                 num_frames_to_write, record_num_frames_remaining);
+            fwrite(cb_data->begin_signal + begin_signal_offset,
+                   (size_t) num_frames_to_write, sizeof(int16_t),
+                   cb_data->output_file_descriptor);
+            num_frames -= num_frames_to_write;
+            record_num_frames_remaining -= num_frames_to_write;
+            record_buffer_offset += num_frames_to_write;
+        }
+        if (num_frames > record_num_frames_remaining) {
+            // Let's write the mic input
+            // +--------------------------------+
+            // |    MMMMMMMMMMMMMMMMMMMMMMMM    |
+            // +--------------------------------+
+            int num_frames_to_write = num_frames - record_num_frames_remaining;
+            LOGD("record source: input num_frames: %d", num_frames_to_write);
+            fwrite(((int16_t *) audioData) + record_buffer_offset, sizeof(int16_t),
+                   (size_t) num_frames_to_write, cb_data->output_file_descriptor);
+            num_frames -= num_frames_to_write;
+        }
+        if (record_num_frames_remaining == cb_data->begin_signal_size_in_frames) {
+            // we are at the beginning of recording the begin signal:
+            // Let's write it on the right side
+            // +--------------------------------+
+            // |                            BBBB|
+            // +--------------------------------+
+            int num_frames_to_write =
+                    std::min(record_num_frames_remaining, num_frames);
+            LOGD("record source: begin num_frames: %d remaining: %d",
+                 num_frames_to_write, record_num_frames_remaining);
+            fwrite(cb_data->begin_signal, (size_t) num_frames_to_write,
+                   sizeof(int16_t), cb_data->output_file_descriptor);
+            num_frames -= num_frames_to_write;
+            record_num_frames_remaining -= num_frames_to_write;
+        }
 
-  } else {
-    // playout
-    LOGD("playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
-    int playout_buffer_offset = 0;
-    if (last_midi_nanotime > 0 && record_num_frames_remaining <= 0) {
-      playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
-      LOGD("playout set playout_num_frames_remaining: %d",
-           playout_num_frames_remaining);
-      struct timespec time;
-      clock_gettime(CLOCK_MONOTONIC, &time);
-      long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
-      if (record_num_frames_remaining > 0) {
-        LOGD(
-            "playout midi triggered but we are still playing "
-            "last_midi_nanotime: %ld "
-            "current_nanotime: %ld "
-            "difference: %ld",
-            last_midi_nanotime, current_nanotime,
-            (current_nanotime - last_midi_nanotime));
-      } else
-        LOGD(
-            "playout midi triggered in full "
-            "last_midi_nanotime: %ld "
-            "current_nanotime: %ld "
-            "difference: %ld ms",
-            last_midi_nanotime, current_nanotime,
-            (current_nanotime - last_midi_nanotime)/1000000);
-      last_midi_nanotime = -1;
+        LOGD("record written_frames: %d", written_frames);
+        if (time_sec > cb_data->timeout) {
+            running = false;
+        }
+
+    } else {
+        // playout
+        LOGD("******  playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
+        int playout_buffer_offset = 0;
+
+
+        if ((playout_num_frames_remaining > 0) &&
+            (playout_state == AAUDIO_STREAM_STATE_STARTED)) {
+            // we are in the middle of playing the end signal:
+            // Let's write it on the left side
+            // +--------------------------------+
+            // |EEEEEEEE                        |
+            // +--------------------------------+
+            LOGD("playout source: end num_frames: %d remaining: %d", num_frames,
+                 playout_num_frames_remaining);
+            int num_frames_to_write =
+                    std::min(num_frames, playout_num_frames_remaining);
+            int end_signal_offset =
+                    cb_data->end_signal_size_in_frames - playout_num_frames_remaining;
+            memcpy(audioData, cb_data->end_signal + end_signal_offset,
+                   sizeof(int16_t) * num_frames_to_write);
+            num_frames -= num_frames_to_write;
+            playout_num_frames_remaining -= num_frames_to_write;
+            playout_buffer_offset += num_frames_to_write;
+        }
+        if (num_frames > 0) {
+            // we are out of signal: play out silence
+            // Let's write it on the right side
+            // +--------------------------------+
+            // |        SSSSSSSSSSSSSSSSSSSSSSSS|
+            // +--------------------------------+
+            LOGD("playout source: silence num_frames: %d", num_frames);
+            memset((void *) (((int16_t *) audioData) + playout_buffer_offset), 0,
+                   sizeof(int16_t) * num_frames);
+        }
     }
-    if ((playout_num_frames_remaining > 0) &&
-        (playout_state == AAUDIO_STREAM_STATE_STARTED)) {
-      // we are in the middle of playing the end signal:
-      // Let's write it on the left side
-      // +--------------------------------+
-      // |EEEEEEEE                        |
-      // +--------------------------------+
-      LOGD("playout source: end num_frames: %d remaining: %d", num_frames,
-           playout_num_frames_remaining);
-      int num_frames_to_write =
-          std::min(num_frames, playout_num_frames_remaining);
-      int end_signal_offset =
-          cb_data->end_signal_size_in_frames - playout_num_frames_remaining;
-      memcpy(audioData, cb_data->end_signal + end_signal_offset,
-             sizeof(int16_t) * num_frames_to_write);
-      num_frames -= num_frames_to_write;
-      playout_num_frames_remaining -= num_frames_to_write;
-      playout_buffer_offset += num_frames_to_write;
-    }
-    if (num_frames > 0) {
-      // we are out of signal: play out silence
-      // Let's write it on the right side
-      // +--------------------------------+
-      // |        SSSSSSSSSSSSSSSSSSSSSSSS|
-      // +--------------------------------+
-      LOGD("playout source: silence num_frames: %d", num_frames);
-      memset((void *)(((int16_t *)audioData) + playout_buffer_offset), 0,
-             sizeof(int16_t) * num_frames);
-    }
-  }
 
   return AAUDIO_CALLBACK_RESULT_CONTINUE;
 }
@@ -213,6 +231,21 @@ Java_com_facebook_audiolat_MainActivity_aaudioMidiSignal(JNIEnv *env,
                                                          jobject /* this */,
                                                          jlong nanotime) {
   last_midi_nanotime = nanotime;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_facebook_audiolat_MainActivity_startReadingMidi(
+        JNIEnv* env, jobject, jobject deviceObj, jint portNumber) {
+    AMidiDevice_fromJava(env, deviceObj, &midiDevice);
+    LOGD("Open midi device");
+    int32_t result =
+            AMidiOutputPort_open(midiDevice, portNumber, &midiOutputPort);
+    if (result) {
+        LOGD("Failed to open midi device and port: %d", portNumber);
+    } else {
+        LOGD("Opened midi device and port: %d", portNumber);
+        midi_port = portNumber;
+    }
 }
 
 // main experiment function
@@ -404,5 +437,7 @@ cleanup:
   if (record_stream) AAudioStream_close(record_stream);
   if (playout_builder) AAudioStreamBuilder_delete(playout_builder);
   if (record_builder) AAudioStreamBuilder_delete(record_builder);
+  if (midiOutputPort) AMidiOutputPort_close(midiOutputPort);
+  if (midiDevice) AMidiDevice_release(midiDevice);
   return 0;
 }

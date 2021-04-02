@@ -33,9 +33,9 @@ capture_logcat audiolat_tmp.txt
 # -e midi ${midi}
 #PERFORMANCE_MODE_LOW_LATENCY 1
 if [ -z ${midi} ]; then
-    adb shell am start -S -n com.facebook.audiolat/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}" -e api "${api}" -e signal "${signal}" -e usage 2 -e atpm 1
+    adb shell am start -S -n com.facebook.audiolat/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}" -e api "${api}" -e signal "${signal}" -e usage 14 -e atpm 1
 else
-    adb shell am start -S -n com.facebook.audiolat/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}" -e api "${api}" -e signal "${signal}" -e usage 2 -e atpm 1 -e midi 1 -e midiid ${midi}
+    adb shell am start -S -n com.facebook.audiolat/.MainActivity -e sr "${samplerate}" -e t "${timeout}" -e rbs "${playbuff}" -e pbs "${recbuff}" -e api "${api}" -e signal "${signal}" -e usage 14 -e atpm 1 -e midi 1 -e midiid ${midi}
 fi
 sleep "${timeout}"
 # give me some startup margin

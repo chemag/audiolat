@@ -37,13 +37,20 @@ find_library( # Sets the name of the path variable.
               # you want CMake to locate.
               log )
 
+find_library( # Sets the name of the path variable.
+        amidi-lib
+
+        # Specifies the name of the NDK library that
+        # you want CMake to locate.
+        amidi )
 
 find_library( # Sets the name of the path variable.
         aaudio-lib
 
         # Specifies the name of the NDK library that
         # you want CMake to locate.
-        aaudio )
+        aaudio
+        )
 
 find_package (oboe REQUIRED CONFIG)
 # Specifies libraries CMake should link to your target library. You
@@ -54,5 +61,6 @@ target_link_libraries( # Specifies the target library.
                         audiolat
                        ${log-lib}
                        ${aaudio-lib}
+                       ${amidi-lib}
                         oboe::oboe
                        )

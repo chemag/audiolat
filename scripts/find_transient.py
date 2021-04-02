@@ -94,8 +94,8 @@ def main():
             if len(signals) > 0:
                 end = signals.iloc[0]
                 match.append([
-                    round(end['time'], 2),
-                    abs(round(end['time'] - time, 2)),
+                    round(end['time'], 3),
+                    abs(round(end['time'] - time, 3)),
                     input_name,
                     round(end['local max level'], 2),
                     round(end['file max level'], 2),
