@@ -45,9 +45,9 @@ def find_pairs(data):
 
 def parse_input_file(filename, options):
     # 135263,16.907875,47,audio.wav
-    data = pd.read_csv(filename)
+    data = pd.read_csv(filename, header=0)
     if data is None:
-        print('warning: No data on {filename}')
+        print(f'warning: No data on {filename}')
         return None, None, None
     pairs = find_pairs(data)
     if options.output is not None:

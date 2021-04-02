@@ -57,7 +57,7 @@ end_signal="${input#*audiolat_}"
 end_signal="${sdir}/../audio/${end_signal%*.raw}.wav"
 
 if [ -z ${midi} ]; then
-    "${sdir}/find_pulses.py" "${begin_signal}" "${end_signal}" -i "${output}" -sr "${samplerate}" -t 35
+    "${sdir}/find_pulses.py" "${begin_signal}" "${end_signal}" -i "${output}" --limit_marker 0.03 -t 80,50
     "${sdir}/calc_delay.py"  "${output}.csv" -o "${wdir}/${test_id}.match.csv" > "${match_log}"
 fi
 echo "parse data to ${test_id}.mean.csv"
@@ -69,7 +69,7 @@ mv ${output}.csv ${device}.${test_id}.csv
 mv ${logfile} ${device}.${test_id}.logcat
 
 if ! [ -z ${midi} ]; then
-    find_transient.py -m "${end_signal}" -t 40 --limit_marker 0.01 "${device}.${test_id}.wav" 
+    find_transient.py -m "${end_signal}" -t 50 --limit_marker 0.03 "${device}.${test_id}.wav" 
 else
     mv "${wdir}/${test_id}.match.csv" "${wdir}/${device}.${test_id}.match.csv"
 fi
