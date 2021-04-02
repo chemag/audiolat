@@ -5,46 +5,35 @@ import soundfile as sf
 import pandas as pd
 import argparse
 import numpy as np
-
-
-def match_buffers(data, ref_data, threshold=95, gain=0):
-    """
-        Tries to find ref_data in data using correlation measurement.
-    """
-    size = len(ref_data)
-
-    if gain != 0:
-        data = np.multiply(data, gain)
-    corr = np.correlate(data, ref_data)
-
-    val = max(corr)
-    index = np.where(corr == val)[0][0]
-    cc = np.corrcoef(data[index: index + size], ref_data)[1, 0] * 100
-    if np.isnan(cc):
-        cc = 0
-    return index, int(cc)
-
+import matplotlib.pyplot as plt
+import common as cm
 
 def main():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('files', nargs='+', help='file(s) to analyze (video)')
     parser.add_argument('-i', '--input',  required=True)
-    parser.add_argument('-t', '--threshold', type=int, default=50)
-    parser.add_argument('-sr', '--samplerate', type=int, default=48000)
+    parser.add_argument('-t', '--threshold', default="50")
+    parser.add_argument('--limit_marker', type=float, default=-1)
+    parser.add_argument('-v', '--verbose', required=False, action='store_true')
+    global options
     options = parser.parse_args()
 
-    dist_name = options.input
-    dist_data = []
+    noisy_name = options.input
+    noisy_data = []
 
-    if dist_name[-3:] == 'wav':
-        dist = sf.SoundFile(dist_name, 'r')
-        dist_data = dist.read()
+    if noisy_name[-3:] == 'wav':
+        noisy = sf.SoundFile(noisy_name, 'r')
+        noisy_data = noisy.read()
     else:
         print('Only wav file supported')
         exit(0)
     last = 0
 
-    split_times = []
+    thresholds = options.threshold.split(",")
+    threshold_counter = 0
+    threshold = int(thresholds[threshold_counter])
+
+    accum_data = None
     for ref_name in options.files:
         print(f'** Check for {ref_name}')
         template = []
@@ -56,39 +45,18 @@ def main():
         else:
             print('Only wav file supported')
             exit(0)
-
-        template = ref_data
-        max_pos = 0
-
-        read_len = int(1.5 * options.samplerate)
-        counter = 0
-        last = 0
-        print(
-            f'calc, dist data len = {len(dist_data)}, ' +
-            f'template len = {len(template)}')
-
-        while last <= len(dist_data) - len(template):
-            index, cc = match_buffers(dist_data[last:last + read_len],
-                                      template)
-
-            index += last
-            pos = index - max_pos
-            if pos < 0:
-                pos = 0
-            if cc > options.threshold:
-                time = pos / options.samplerate
-                print(f'Append: {pos} @ {round(time, 2)} s, cc: {cc}')
-                split_times.append([pos, time, cc, ref_name])
-
-            last += read_len  # len(template)
-            counter += 1
-
-        data = pd.DataFrame()
-        labels = ['sample', 'time', 'correlation', 'reference']
-        data = pd.DataFrame.from_records(
-            split_times, columns=labels, coerce_float=True)
-
-    data.to_csv(dist_name + '.csv', index=False)
+        if options.limit_marker:
+            ref_data = ref_data[:int(options.limit_marker * noisy.samplerate)]
+        data = cm.find_markers(ref_data, noisy_data, threshold, noisy.samplerate, verbose=options.verbose)
+        data['reference'] = ref_name
+        if threshold_counter < len(thresholds) - 1:
+            threshold_counter += 1
+            threshold = int(thresholds[threshold_counter])
+        if accum_data is None:
+            accum_data = data
+        else:
+            accum_data = accum_data.append(data)
+    accum_data.to_csv(noisy_name + '.csv', index=False)
 
 
 if __name__ == '__main__':

@@ -220,8 +220,6 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
   jint begin_signal_size_in_bytes = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "sampleRate", "I");
   jint sample_rate = env->GetIntField(settings, fid);
-  fid = env->GetFieldID(cSettings, "deviceId", "I");
-  jint device_id = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "outputFilePath", "Ljava/lang/String;");
   jstring output_file_path = (jstring)env->GetObjectField(settings, fid);
   fid = env->GetFieldID(cSettings, "timeout", "I");
@@ -270,9 +268,6 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
     return -1;
   }
 
-  // set up the playout (downlink, speaker) audio stream
-  // builder.setDeviceId(AAUDIO_UNSPECIFIED);  // more of this
-  // later...device_id);
   builder.setDirection(oboe::Direction::Output);
   builder.setSharingMode(oboe::SharingMode::Shared);
   builder.setSampleRate(sample_rate);
@@ -341,6 +336,9 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
     sleep(1);
   }
 
+
+  LOGD("playout xrun = %d", record_stream->getXRunCount().value());
+  LOGD("record xrun = %d", playout_stream->getXRunCount().value());
   // cleanup
   record_stream->requestStop();
   playout_stream->requestStop();

@@ -51,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
   public native int runOboe(TestSettings settings);
   public native void aaudioMidiSignal(long nanotime);
   public native void oboeMidiSignal(long nanotime);
+  public native void startReadingMidi(MidiDevice device, int portNumber);
 
   protected void getMidiId(MidiManager midiManager, Handler handler) {
     // check midi id
@@ -248,25 +249,27 @@ public class MainActivity extends AppCompatActivity {
             // Just open the first port (and in most cases the only one)
             MidiOutputPort output = device.openOutputPort(0);
             if (output != null) {
-              output.onConnect(new MidiReceiver() {
-                @Override
-                public void onSend(byte[] msg, int offset, int count, long timestamp)
-                    throws IOException {
-                  if (mApi.equals(AAUDIO)) {
-                    aaudioMidiSignal(timestamp);
-                  } else if (mApi.equals(OBOE)) {
-                    oboeMidiSignal(timestamp);
-                  } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
-                    mJavaAudio.javaMidiSignal(timestamp);
+              if (mApi.equals(AAUDIO)) {
+                startReadingMidi(device, 0);
+              } else {
+                output.onConnect(new MidiReceiver() {
+                  @Override
+                  public void onSend(byte[] msg, int offset, int count, long timestamp)
+                      throws IOException {
+                    if (mApi.equals(OBOE)) { //TODO: native oboe midi
+                      oboeMidiSignal(timestamp);
+                    } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
+                      mJavaAudio.javaMidiSignal(timestamp);
+                    }
+                    long nanoTime = System.nanoTime();
+                    Log.d(LOG_ID,
+                        "received midi data: "
+                            + "timestamp: " + timestamp + " "
+                            + "nanoTime: " + nanoTime + " "
+                            + "diff: " + (nanoTime - timestamp));
                   }
-                  long nanoTime = System.nanoTime();
-                  Log.d(LOG_ID,
-                      "received midi data: "
-                          + "timestamp: " + timestamp + " "
-                          + "nanoTime: " + nanoTime + " "
-                          + "diff: " + (nanoTime - timestamp));
-                }
-              });
+                });
+              }
             } else {
               Log.d(LOG_ID, "Failed to first port");
             }
@@ -366,10 +369,18 @@ public class MainActivity extends AppCompatActivity {
       for (int rate : rates) {
         Log.d(LOG_ID, "-- ch.rate: " + rate);
       }
+
+      if (info.isSink() && info.getType() ==  AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+        settings.playoutDeviceId = info.getId();
+      } else if (info.isSource()  && info.getType() ==  AudioDeviceInfo.TYPE_BUILTIN_MIC) {
+          settings.playoutDeviceId = info.getId();
+      }
+
+      if (settings.playoutDeviceId != 0 && settings.recordDeviceId !=0){
+          break;
+      }
     }
 
-    AudioDeviceInfo info = adevs[0]; // Take the first (and best)
-    settings.deviceId = info.getId();
     if (api.equals(AAUDIO)) {
       Log.d(LOG_ID, "Calling native (AAudio) API");
       int status = runAAudio(settings);
