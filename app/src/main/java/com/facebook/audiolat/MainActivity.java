@@ -31,7 +31,7 @@ public class MainActivity extends AppCompatActivity {
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
   String mSignal = "chirp";
-  int mUsage = AudioAttributes.USAGE_UNKNOWN;
+  int mUsage = AudioAttributes.USAGE_GAME;
   int mTimeBetweenSignals = 2;
   public String AAUDIO = "aaudio";
   public String JAVAAUDIO = "javaaudio";
