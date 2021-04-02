@@ -256,7 +256,10 @@ public class MainActivity extends AppCompatActivity {
                   @Override
                   public void onSend(byte[] msg, int offset, int count, long timestamp)
                       throws IOException {
-                    if (mApi.equals(OBOE)) { // TODO: native oboe midi
+                    if (mApi.equals(OBOE)) {
+                      // TODO: native oboe midi
+                      Log.e(LOG_ID, "no native midi support for oboe");
+                      System.exit(-1);
                       oboeMidiSignal(timestamp);
                     } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
                       mJavaAudio.javaMidiSignal(timestamp);

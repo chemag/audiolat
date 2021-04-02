@@ -47,7 +47,7 @@ def main():
         if options.limit_marker:
             ref_data = ref_data[:int(options.limit_marker * audiofile.samplerate)]
         max_pos = 0
-        markers = cm.find_markers(ref_data, audio_data, threshold=options.threshold, sampelrate=audiofile.samplerate, verbose=options.verbose)
+        markers = cm.find_markers(ref_data, audio_data, threshold=options.threshold, samplerate=audiofile.samplerate, verbose=options.verbose)
 
         index = 0
         triggered = False

@@ -16,7 +16,7 @@ api=$5
 signal=$6
 
 
-# <device>.aaudio.aec_on.agc_on.ns_on.cond_on.exp_<id>.csv 
+# <device>.aaudio.aec_on.agc_on.ns_on.cond_on.exp_<id>.csv
 # <device>.aaudio.aec_off.agc_off.ns_off.cond_on.exp_<id>.csv
 test_id=$7 #.aaudio.aec_off.agc_off.ns_off.cond_on.exp_<id>
 midi=$8
@@ -61,15 +61,15 @@ if [ -z ${midi} ]; then
     "${sdir}/calc_delay.py"  "${output}.csv" -o "${wdir}/${test_id}.match.csv" > "${match_log}"
 fi
 echo "parse data to ${test_id}.mean.csv"
-echo "${sdir}/parse_data.sh ${logfile} ${match_log} ${sampelrate} ${wdir}/${test_id}.mean.csv"
-device=$("${sdir}/parse_data.sh" "${logfile}" "${match_log}" "${sampelrate}" "${test_id}.mean.csv")
+echo "${sdir}/parse_data.sh ${logfile} ${match_log} ${samplerate} ${wdir}/${test_id}.mean.csv"
+device=$("${sdir}/parse_data.sh" "${logfile}" "${match_log}" "${samplerate}" "${test_id}.mean.csv")
 echo "Change names"
 mv ${output} ${device}.${test_id}.wav
 mv ${output}.csv ${device}.${test_id}.csv
 mv ${logfile} ${device}.${test_id}.logcat
 
 if ! [ -z ${midi} ]; then
-    find_transient.py -m "${end_signal}" -t 50 --limit_marker 0.03 "${device}.${test_id}.wav" 
+    find_transient.py -m "${end_signal}" -t 50 --limit_marker 0.03 "${device}.${test_id}.wav"
 else
     mv "${wdir}/${test_id}.match.csv" "${wdir}/${device}.${test_id}.match.csv"
 fi

@@ -1,6 +1,6 @@
 logfile=${1}
 match_log=${2}
-sampelrate=${3}
+samplerate=${3}
 name=${4}
 average=$(cat "${match_log}"| grep -Po "[0-9.]*(?= ms)")
 
@@ -21,8 +21,8 @@ build=$(adb shell getprop ro.build.id)
 hwmaj=$(adb shell getprop ro.boot.hardware.majorid)
 hwmin=$(adb shell getprop ro.boot.hardware.minorid)
 
-header="product, platform, revision, build, sampelrate, latency ms, playout buffer size, playout buffer capacity,playout frames per burst, playout performance mode,  record buffer size, record buffer capacity, record frames per burst, record performance mode"
-data="${product},${platform},${hwmaj}.${hwmin},${build},${sampelrate},${average},${playout_current_buffer_size},${playout_buffer_capacity},${playout_frames_per_burst},${playout_performance_mode},${record_current_buffer_size},${record_buffer_capacity},${record_frames_per_burst},${record_performance_mode}"
+header="product, platform, revision, build, samplerate, latency ms, playout buffer size, playout buffer capacity,playout frames per burst, playout performance mode,  record buffer size, record buffer capacity, record frames per burst, record performance mode"
+data="${product},${platform},${hwmaj}.${hwmin},${build},${samplerate},${average},${playout_current_buffer_size},${playout_buffer_capacity},${playout_frames_per_burst},${playout_performance_mode},${record_current_buffer_size},${record_buffer_capacity},${record_frames_per_burst},${record_performance_mode}"
 
 
 output="${product}.${4}"

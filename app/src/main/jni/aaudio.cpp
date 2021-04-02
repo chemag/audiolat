@@ -1,6 +1,7 @@
 #include <aaudio/AAudio.h>
 #include <amidi/AMidi.h>
 #include <android/log.h>
+#include <inttypes.h>
 #include <jni.h>
 #include <math.h>
 #include <pthread.h>
@@ -17,7 +18,6 @@
 static bool running = false;
 static long last_midi_nanotime = -1;
 static int midi_port = 0;
-// AMidiDevice midiDevice;
 
 static AMidiDevice *midiDevice = NULL;
 static AMidiOutputPort *midiOutputPort(NULL);
@@ -34,6 +34,38 @@ struct callback_data {
   int timeout;
   int time_between_signals;
 };
+
+bool midi_check_for_data(AMidiOutputPort *midi_output_port,
+                         int64_t *last_midi_ts) {
+  const size_t MAX_BYTES_TO_RECEIVE = 128;
+  uint8_t incomingMessage[MAX_BYTES_TO_RECEIVE];
+  int32_t opcode;
+  size_t numBytesReceived;
+  int64_t timestamp;
+  ssize_t numMessagesReceived = AMidiOutputPort_receive(
+      midiOutputPort, &opcode, incomingMessage, MAX_BYTES_TO_RECEIVE,
+      &numBytesReceived, &timestamp);
+
+  if (numMessagesReceived > 0) {
+    if ((timestamp - *last_midi_ts) / 1000000 > 1000) {
+      *last_midi_ts = timestamp;
+
+      struct timespec time;
+      clock_gettime(CLOCK_MONOTONIC, &time);
+      long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
+      LOGD(
+          "playout midi triggered in full "
+          "last_midi_nanotime: %" PRIi64
+          " "
+          "current_nanotime: %ld "
+          "difference_ms: %" PRIi64,
+          *last_midi_ts, current_nanotime,
+          (current_nanotime - *last_midi_ts) / 1000000);
+      return true;
+    }
+  }
+  return false;
+}
 
 aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
                                            void *audioData,
@@ -55,31 +87,8 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       time_sec, playout_num_frames_remaining, record_num_frames_remaining);
 
   // Read MIDI Data
-  const size_t MAX_BYTES_TO_RECEIVE = 128;
-  uint8_t incomingMessage[MAX_BYTES_TO_RECEIVE];
-  int32_t opcode;
-  size_t numBytesReceived;
-  int64_t timestamp;
-  ssize_t numMessagesReceived = AMidiOutputPort_receive(
-      midiOutputPort, &opcode, incomingMessage, MAX_BYTES_TO_RECEIVE,
-      &numBytesReceived, &timestamp);
-
-  if (numMessagesReceived > 0) {
-    if ((timestamp - last_midi_ts) / 1000000 > 1000) {
-      last_midi_ts = timestamp;
-
-      struct timespec time;
-      clock_gettime(CLOCK_MONOTONIC, &time);
-      long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
-      LOGD(
-          "playout midi triggered in full "
-          "last_midi_nanotime: %ld "
-          "current_nanotime: %ld "
-          "difference: %ld ms",
-          last_midi_ts, current_nanotime,
-          (current_nanotime - last_midi_ts) / 1000000);
-      playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
-    }
+  if (midi_check_for_data(midiOutputPort, &last_midi_ts)) {
+    playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
   }
 
   if (stream == cb_data->record_stream) {
@@ -262,7 +271,6 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   jint begin_signal_size_in_bytes = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "sampleRate", "I");
   jint sample_rate = env->GetIntField(settings, fid);
-  jint device_id = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "outputFilePath", "Ljava/lang/String;");
   jstring output_file_path = (jstring)env->GetObjectField(settings, fid);
   fid = env->GetFieldID(cSettings, "timeout", "I");
@@ -324,7 +332,6 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     LOGD("Failed to create playout stream");
     goto cleanup;
   }
-  // more of this later...device_id);
   AAudioStreamBuilder_setDeviceId(playout_builder, playout_device_id);
   AAudioStreamBuilder_setUsage(playout_builder, usage);
   AAudioStreamBuilder_setDirection(playout_builder, AAUDIO_DIRECTION_OUTPUT);
@@ -419,8 +426,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
 
   playout_xrun = AAudioStream_getXRunCount(playout_stream);
   record_xrun = AAudioStream_getXRunCount(record_stream);
-  LOGD("playout xrun = %d", playout_xrun);
-  LOGD("record xrun = %d", record_xrun);
+  LOGD("playout_xrun: %d", playout_xrun);
+  LOGD("record_xrun: %d", record_xrun);
   // cleanup
   AAudioStream_requestStop(record_stream);
   AAudioStream_requestStop(playout_stream);
