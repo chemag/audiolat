@@ -336,7 +336,6 @@ Java_com_facebook_audiolat_MainActivity_runOboe(JNIEnv *env, jobject /* this */,
     sleep(1);
   }
 
-
   LOGD("playout xrun = %d", record_stream->getXRunCount().value());
   LOGD("record xrun = %d", playout_stream->getXRunCount().value());
   // cleanup

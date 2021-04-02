@@ -256,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
                   @Override
                   public void onSend(byte[] msg, int offset, int count, long timestamp)
                       throws IOException {
-                    if (mApi.equals(OBOE)) { //TODO: native oboe midi
+                    if (mApi.equals(OBOE)) { // TODO: native oboe midi
                       oboeMidiSignal(timestamp);
                     } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
                       mJavaAudio.javaMidiSignal(timestamp);
@@ -370,14 +370,14 @@ public class MainActivity extends AppCompatActivity {
         Log.d(LOG_ID, "-- ch.rate: " + rate);
       }
 
-      if (info.isSink() && info.getType() ==  AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+      if (info.isSink() && info.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
         settings.playoutDeviceId = info.getId();
-      } else if (info.isSource()  && info.getType() ==  AudioDeviceInfo.TYPE_BUILTIN_MIC) {
-          settings.playoutDeviceId = info.getId();
+      } else if (info.isSource() && info.getType() == AudioDeviceInfo.TYPE_BUILTIN_MIC) {
+        settings.playoutDeviceId = info.getId();
       }
 
-      if (settings.playoutDeviceId != 0 && settings.recordDeviceId !=0){
-          break;
+      if (settings.playoutDeviceId != 0 && settings.recordDeviceId != 0) {
+        break;
       }
     }
 
