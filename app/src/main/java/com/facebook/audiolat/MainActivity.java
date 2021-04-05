@@ -10,11 +10,15 @@ import android.media.midi.MidiDeviceInfo;
 import android.media.midi.MidiManager;
 import android.media.midi.MidiOutputPort;
 import android.media.midi.MidiReceiver;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -44,7 +48,11 @@ public class MainActivity extends AppCompatActivity {
   int mMidiId = -1;
   MidiDeviceInfo mMidiDeviceInfo;
   static {
-    System.loadLibrary("audiolat");
+    if(Build.VERSION.SDK_INT >= 29) {
+      System.loadLibrary("audiolat");
+    } else {
+      System.loadLibrary("audiolat_sdk28");
+    }
   }
 
   public native int runAAudio(TestSettings settings);
@@ -184,19 +192,22 @@ public class MainActivity extends AppCompatActivity {
 
     if (permissions != null && permissions.length > 0) {
       int REQUEST_ALL_PERMISSIONS = 0x4562;
+      Log.d(LOG_ID, "Request permissions: " + permissions);
       ActivityCompat.requestPermissions(this, permissions, REQUEST_ALL_PERMISSIONS);
     }
+
+    File[] externalStorageVolumes =
+            ContextCompat.getExternalFilesDirs(getApplicationContext(), null);
+    File primaryExternalStorage = externalStorageVolumes[0];
 
     try {
       readCliArguments();
 
       setContentView(R.layout.activity_main);
-      String file_path = "/sdcard/audiolat";
-
       android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
 
       // choose end signal file
-      String filePath = setupSignalSource();
+      String filePath = setupSignalSource(primaryExternalStorage.getAbsolutePath());
 
       // read the end signal into endSignal
       InputStream is = this.getResources().openRawResource(mEndSignal);
@@ -249,27 +260,30 @@ public class MainActivity extends AppCompatActivity {
             // Just open the first port (and in most cases the only one)
             MidiOutputPort output = device.openOutputPort(0);
             if (output != null) {
-              if (mApi.equals(AAUDIO)) {
+              if (Build.VERSION.SDK_INT >= 29 && mApi.equals(AAUDIO)) {
                 startReadingMidi(device, 0);
               } else {
                 output.onConnect(new MidiReceiver() {
+                  long mLastEventTs = 0;
                   @Override
                   public void onSend(byte[] msg, int offset, int count, long timestamp)
                       throws IOException {
-                    if (mApi.equals(OBOE)) {
-                      // TODO: native oboe midi
-                      Log.e(LOG_ID, "no native midi support for oboe");
-                      System.exit(-1);
-                      oboeMidiSignal(timestamp);
-                    } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
-                      mJavaAudio.javaMidiSignal(timestamp);
+                    if (timestamp - mLastEventTs / 1000000 > 1000) {
+                      if (mApi.equals(OBOE)) { //TODO: native oboe midi
+                        oboeMidiSignal(timestamp);
+                      } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
+                        mJavaAudio.javaMidiSignal(timestamp);
+                      } else if (mApi.equals(AAUDIO)) {
+                        aaudioMidiSignal(timestamp);
+                      }
+                      long nanoTime = System.nanoTime();
+                      Log.d(LOG_ID,
+                              "received midi data: "
+                                      + "timestamp: " + timestamp + " "
+                                      + "nanoTime: " + nanoTime + " "
+                                      + "diff: " + (nanoTime - timestamp));
                     }
-                    long nanoTime = System.nanoTime();
-                    Log.d(LOG_ID,
-                        "received midi data: "
-                            + "timestamp: " + timestamp + " "
-                            + "nanoTime: " + nanoTime + " "
-                            + "diff: " + (nanoTime - timestamp));
+                    mLastEventTs = timestamp;
                   }
                 });
               }
@@ -291,8 +305,8 @@ public class MainActivity extends AppCompatActivity {
     }
   }
 
-  private String setupSignalSource() {
-    String filePath = "/sdcard/audiolat";
+  private String setupSignalSource(String filePath) {
+    filePath += "/audiolat";
     if (mSignal.equals("chirp")) {
       // choose end signal file
       switch (mSampleRate) {
@@ -347,6 +361,7 @@ public class MainActivity extends AppCompatActivity {
         int permission = ActivityCompat.checkSelfPermission(context, permName);
         if (permission != PackageManager.PERMISSION_GRANTED) {
           nonGrantedPerms.add(permName);
+          Log.d(LOG_ID, "Failed to get permission for:"+permName);
         }
       }
     } catch (PackageManager.NameNotFoundException e) {

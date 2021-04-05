@@ -8,8 +8,7 @@ android {
 
     defaultConfig {
         applicationId "com.facebook.audiolat"
-        minSdkVersion 29
-        targetSdkVersion 29
+
         versionCode 1
         versionName "1.0"
 
@@ -49,6 +48,33 @@ android {
             prefab true
         }
 
+    }
+
+    flavorDimensions "version"
+    productFlavors {
+        audiolat {
+            dimension "version"
+            minSdkVersion 29
+            targetSdkVersion 29
+            externalNativeBuild {
+                cmake {
+                    targets "audiolat"
+                }
+            }
+        }
+        audiolat_sdk28 {
+            dimension "version"
+            minSdkVersion 28
+            targetSdkVersion 28
+            applicationIdSuffix ".sdk28"
+            versionNameSuffix "-sdk28"
+            externalNativeBuild {
+                cmake {
+                    targets "audiolat_sdk28"
+                }
+            }
+
+        }
     }
 
 }
