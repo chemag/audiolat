@@ -1,14 +1,14 @@
+#define __STDC_FORMAT_MACROS 1
+#include <inttypes.h>
 #include <aaudio/AAudio.h>
 #include <amidi/AMidi.h>
 #include <android/log.h>
-#include <inttypes.h>
 #include <jni.h>
 #include <math.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
-
 #include <string>
 //#include <android/trace.h>
 #include <dlfcn.h>
@@ -16,11 +16,13 @@
   __android_log_print(ANDROID_LOG_DEBUG, "audiolat", __VA_ARGS__)
 
 static bool running = false;
-static long last_midi_nanotime = -1;
+static int64_t last_midi_nanotime = -1;
 static int midi_port = 0;
 
-static AMidiDevice *midiDevice = NULL;
-static AMidiOutputPort *midiOutputPort(NULL);
+#if __ANDROID_API__ >= 29
+static AMidiDevice* midiDevice = NULL;
+static AMidiOutputPort* midiOutputPort(NULL);
+#endif
 
 struct callback_data {
   FILE *output_file_descriptor;
@@ -35,8 +37,17 @@ struct callback_data {
   int time_between_signals;
 };
 
-bool midi_check_for_data(AMidiOutputPort *midi_output_port,
-                         int64_t *last_midi_ts) {
+bool midi_check_for_data(
+#if __ANDROID_API__ >= 29
+	                    AMidiOutputPort *midi_output_port,
+#endif
+                        int64_t *last_midi_ts) {
+
+  struct timespec time;
+  bool triggered = false;
+  clock_gettime(CLOCK_MONOTONIC, &time);
+  long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
+#if __ANDROID_API__ >= 29
   const size_t MAX_BYTES_TO_RECEIVE = 128;
   uint8_t incomingMessage[MAX_BYTES_TO_RECEIVE];
   int32_t opcode;
@@ -49,22 +60,25 @@ bool midi_check_for_data(AMidiOutputPort *midi_output_port,
   if (numMessagesReceived > 0) {
     if ((timestamp - *last_midi_ts) / 1000000 > 1000) {
       *last_midi_ts = timestamp;
-
-      struct timespec time;
-      clock_gettime(CLOCK_MONOTONIC, &time);
-      long current_nanotime = time.tv_sec * 1000000000 + time.tv_nsec;
-      LOGD(
-          "playout midi triggered in full "
-          "last_midi_nanotime: %" PRIi64
-          " "
-          "current_nanotime: %ld "
-          "difference_ms: %" PRIi64,
-          *last_midi_ts, current_nanotime,
-          (current_nanotime - *last_midi_ts) / 1000000);
-      return true;
+      triggered = true;
     }
   }
-  return false;
+#else
+  if ((last_midi_nanotime - *last_midi_ts) / 1000000 > 1000) {
+      last_midi_nanotime = *last_midi_ts;
+      triggered = true;
+  }
+#endif
+  LOGD(
+    "playout midi triggered in full "
+    "last_midi_nanotime: %" PRIi64
+    " "
+    "current_nanotime: %ld "
+    "difference_ms: %" PRIi64,
+    *last_midi_ts, current_nanotime,
+    (current_nanotime - *last_midi_ts) / 1000000);
+
+  return triggered;
 }
 
 aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
@@ -87,9 +101,14 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       time_sec, playout_num_frames_remaining, record_num_frames_remaining);
 
   // Read MIDI Data
-  if (midi_check_for_data(midiOutputPort, &last_midi_ts)) {
+  if (midi_check_for_data(
+#if __ANDROID_API__ >= 29
+			midiOutputPort,
+#endif
+			&last_midi_ts)) {
     playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
   }
+
 
   if (stream == cb_data->record_stream) {
     // recording
@@ -241,6 +260,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_facebook_audiolat_MainActivity_startReadingMidi(JNIEnv *env, jobject,
                                                          jobject deviceObj,
                                                          jint portNumber) {
+#if __ANDROID_API__ >= 29
   AMidiDevice_fromJava(env, deviceObj, &midiDevice);
   LOGD("Open midi device");
   int32_t result =
@@ -251,6 +271,7 @@ Java_com_facebook_audiolat_MainActivity_startReadingMidi(JNIEnv *env, jobject,
     LOGD("Opened midi device and port: %d", portNumber);
     midi_port = portNumber;
   }
+#endif
 }
 
 // main experiment function
@@ -440,7 +461,9 @@ cleanup:
   if (record_stream) AAudioStream_close(record_stream);
   if (playout_builder) AAudioStreamBuilder_delete(playout_builder);
   if (record_builder) AAudioStreamBuilder_delete(record_builder);
+#if __ANDROID_API__ >= 29
   if (midiOutputPort) AMidiOutputPort_close(midiOutputPort);
   if (midiDevice) AMidiDevice_release(midiDevice);
+#endif
   return 0;
 }

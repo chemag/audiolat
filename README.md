@@ -138,13 +138,21 @@ Second build the encapp app:
 ```
 $ ./gradlew clean
 $ ./gradlew build
-$ ./gradlew installDebug
+$ ./gradlew installAudiolatDebug
+```
+If running the application targeted at sdk 28 the last command should be:
+```
+$ ./gradlew installAudiolat_sdk28Debug
 ```
 
 (2) Run the app for the very first time to get permissions
 
 ```
 $ adb shell am start -n com.facebook.audiolat/.MainActivity
+```
+If running the application targeted at sdk 28 the command is:
+```
+$ adb shell am start -n com.facebook.audiolat.sdk28/com.facebook.audiolat.MainActivity 
 ```
 
 The very first time you run the app, you will receive 2 requests to give permissions to the app. The app needs:
@@ -189,11 +197,13 @@ Run the command. You should hear some chirps (a signal of continuously increasin
 
 (2) Analyze results
 
-The recorded file can be found in `/sdcard/audiolat*.raw`. First pull it
+The recorded file can be found in `/storage/emulated/0/Android/data/com.facebook.audiolat/files/audiolat*.raw`. First pull it
 and convert it to pcm s16 wav.
+If running the application targeted at sdk 28 the path is:
+`/storage/emulated/0/Android/data/com.facebook.audiolat.sdk28/files/audiolat*.raw`
 
 ```
-$ adb pull /sdcard/audiolat_chirp2_16k_300ms.raw .
+$ adb pull /storage/emulated/0/Android/data/com.facebook.audiolat/files/audiolat_chirp2_16k_300ms.raw .
 $ ffmpeg -f s16le -acodec pcm_s16le -ac 1 -ar 16000 -i audiolat_chirp2_16k_300ms.raw audiolat_chirp2_16k_300ms.raw.wav
 ```
 

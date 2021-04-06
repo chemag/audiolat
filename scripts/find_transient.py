@@ -15,6 +15,7 @@ def main():
     parser.add_argument('-t', '--threshold', type=int, default=90)
     parser.add_argument('-p', '--peak_span', type=int, default=18)
     parser.add_argument('--limit_marker', type=float, default=-1)
+    parser.add_argument('-d', '--max_distance', type=int, default=.5)
     parser.add_argument('-v', '--verbose', required=False, action='store_true')
 
     options = parser.parse_args()
@@ -84,13 +85,13 @@ def main():
         for point in markers.iterrows():
             time = point[1]['time']
             if options.leading:
-                # limit to one second and 10ms in the future
+                # limit to .5 second and 10ms in the future
                 signals = data.loc[(data['time'] > time + 0.010) &
-                                   (data['time'] < time + 1)]
+                                   (data['time'] < time + options.max_distance)]
             else:
-                # limit to one second and 5ms in the past
+                # limit to .5 seconds and 5ms in the past
                 signals = data.loc[(data['time'] < time - 0.005) &
-                                   (data['time'] > time - 1)]
+                                   (data['time'] > time - options.max_distance)]
             if len(signals) > 0:
                 end = signals.iloc[0]
                 match.append([
@@ -102,7 +103,7 @@ def main():
                     round(end['rms'], 2),
                 ])
 
-        labels = ['time', 'delay', 'file', 'local max level',
+        labels = ['timestamp', 'latency', 'file', 'local max level',
                   'file max level', 'rms']
         matches = pd.DataFrame.from_records(
             match, columns=labels, coerce_float=True)
