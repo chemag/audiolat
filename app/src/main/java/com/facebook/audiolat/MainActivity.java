@@ -17,7 +17,6 @@ import android.util.Log;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,7 +47,7 @@ public class MainActivity extends AppCompatActivity {
   int mMidiId = -1;
   MidiDeviceInfo mMidiDeviceInfo;
   static {
-    if(Build.VERSION.SDK_INT >= 29) {
+    if (Build.VERSION.SDK_INT >= 29) {
       System.loadLibrary("audiolat");
     } else {
       System.loadLibrary("audiolat_sdk28");
@@ -197,7 +196,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     File[] externalStorageVolumes =
-            ContextCompat.getExternalFilesDirs(getApplicationContext(), null);
+        ContextCompat.getExternalFilesDirs(getApplicationContext(), null);
     File primaryExternalStorage = externalStorageVolumes[0];
 
     try {
@@ -268,8 +267,8 @@ public class MainActivity extends AppCompatActivity {
                   @Override
                   public void onSend(byte[] msg, int offset, int count, long timestamp)
                       throws IOException {
-                    if (timestamp - mLastEventTs / 1000000 > 1000) {
-                      if (mApi.equals(OBOE)) { //TODO: native oboe midi
+                    if (((timestamp - mLastEventTs) / 1000000) > 1000) {
+                      if (mApi.equals(OBOE)) { // TODO: native oboe midi
                         oboeMidiSignal(timestamp);
                       } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
                         mJavaAudio.javaMidiSignal(timestamp);
@@ -278,10 +277,10 @@ public class MainActivity extends AppCompatActivity {
                       }
                       long nanoTime = System.nanoTime();
                       Log.d(LOG_ID,
-                              "received midi data: "
-                                      + "timestamp: " + timestamp + " "
-                                      + "nanoTime: " + nanoTime + " "
-                                      + "diff: " + (nanoTime - timestamp));
+                          "received midi data: "
+                              + "timestamp: " + timestamp + " "
+                              + "nanoTime: " + nanoTime + " "
+                              + "diff: " + (nanoTime - timestamp));
                     }
                     mLastEventTs = timestamp;
                   }
@@ -361,7 +360,7 @@ public class MainActivity extends AppCompatActivity {
         int permission = ActivityCompat.checkSelfPermission(context, permName);
         if (permission != PackageManager.PERMISSION_GRANTED) {
           nonGrantedPerms.add(permName);
-          Log.d(LOG_ID, "Failed to get permission for:"+permName);
+          Log.d(LOG_ID, "Failed to get permission for:" + permName);
         }
       }
     } catch (PackageManager.NameNotFoundException e) {

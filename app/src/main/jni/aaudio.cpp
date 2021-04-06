@@ -1,14 +1,15 @@
 #define __STDC_FORMAT_MACROS 1
-#include <inttypes.h>
 #include <aaudio/AAudio.h>
 #include <amidi/AMidi.h>
 #include <android/log.h>
+#include <inttypes.h>
 #include <jni.h>
 #include <math.h>
 #include <pthread.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+
 #include <string>
 //#include <android/trace.h>
 #include <dlfcn.h>
@@ -20,8 +21,8 @@ static int64_t last_midi_nanotime = -1;
 static int midi_port = 0;
 
 #if __ANDROID_API__ >= 29
-static AMidiDevice* midiDevice = NULL;
-static AMidiOutputPort* midiOutputPort(NULL);
+static AMidiDevice *midiDevice = NULL;
+static AMidiOutputPort *midiOutputPort(NULL);
 #endif
 
 struct callback_data {
@@ -39,9 +40,9 @@ struct callback_data {
 
 bool midi_check_for_data(
 #if __ANDROID_API__ >= 29
-	                    AMidiOutputPort *midi_output_port,
+    AMidiOutputPort *midi_output_port,
 #endif
-                        int64_t *last_midi_ts) {
+    int64_t *last_midi_ts) {
 
   struct timespec time;
   bool triggered = false;
@@ -65,18 +66,18 @@ bool midi_check_for_data(
   }
 #else
   if ((last_midi_nanotime - *last_midi_ts) / 1000000 > 1000) {
-      last_midi_nanotime = *last_midi_ts;
-      triggered = true;
+    last_midi_nanotime = *last_midi_ts;
+    triggered = true;
   }
 #endif
   LOGD(
-    "playout midi triggered in full "
-    "last_midi_nanotime: %" PRIi64
-    " "
-    "current_nanotime: %ld "
-    "difference_ms: %" PRIi64,
-    *last_midi_ts, current_nanotime,
-    (current_nanotime - *last_midi_ts) / 1000000);
+      "playout midi triggered in full "
+      "last_midi_nanotime: %" PRIi64
+      " "
+      "current_nanotime: %ld "
+      "difference_ms: %" PRIi64,
+      *last_midi_ts, current_nanotime,
+      (current_nanotime - *last_midi_ts) / 1000000);
 
   return triggered;
 }
@@ -103,12 +104,11 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
   // Read MIDI Data
   if (midi_check_for_data(
 #if __ANDROID_API__ >= 29
-			midiOutputPort,
+          midiOutputPort,
 #endif
-			&last_midi_ts)) {
+          &last_midi_ts)) {
     playout_num_frames_remaining = cb_data->end_signal_size_in_frames;
   }
-
 
   if (stream == cb_data->record_stream) {
     // recording

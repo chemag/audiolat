@@ -137,7 +137,8 @@ Second build the encapp app:
 
 ```
 $ ./gradlew clean
-$ ./gradlew build
+$ ./gradlew build  # default sdk version
+$ ./gradlew buildAudiolat_sdk28ReleasePreBundle  # sdk 28 version
 $ ./gradlew installAudiolatDebug
 ```
 If running the application targeted at sdk 28 the last command should be:
