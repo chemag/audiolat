@@ -53,7 +53,11 @@ public class MainActivity extends AppCompatActivity {
   String mApi = AAUDIO;
   JavaAudio mJavaAudio;
   int mJavaaudioPerformanceMode = 0;
+  // experiment type
+  // * true: downlink-only experiment (either midi- or usb-based)
+  // * false: full (downlink+uplink) experiment
   boolean mMidiMode = false;
+  // midi device id (-2 to use plain USB)
   int mMidiId = -1;
   MidiDeviceInfo mMidiDeviceInfo;
   UsbMidi mUsbMidi;
@@ -87,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
               startUsbMidi(device);
             }
           } else {
-            Log.d(LOG_ID, "permission denied for device " + device);
+            Log.d(LOG_ID, "usb: permission denied for device " + device);
           }
         }
       }
@@ -100,13 +104,13 @@ public class MainActivity extends AppCompatActivity {
     MidiDeviceInfo[] infos = midiManager.getDevices();
     // check there is at least a valid midi id
     if (infos.length < 1) {
-      Log.e(LOG_ID, "MidiDeviceInfo no midi devices available");
+      Log.e(LOG_ID, "midi: MidiDeviceInfo no midi devices available");
       System.exit(-1);
     }
     for (MidiDeviceInfo info : infos) {
       Bundle bundle = info.getProperties();
       Log.d(LOG_ID,
-          "MidiDeviceInfo { "
+          "midi: MidiDeviceInfo { "
               + "id: " + info.getId() + " "
               + "inputPortCount(): " + info.getInputPortCount() + " "
               + "outputPortCount(): " + info.getOutputPortCount() + " "
@@ -114,7 +118,7 @@ public class MainActivity extends AppCompatActivity {
               + "}");
       if (mMidiId == -1) {
         Log.d(LOG_ID,
-            "default midiid mapped to first device "
+            "midi: default midiid mapped to first device "
                 + "midiid: " + info.getId() + " "
                 + "product: " + bundle.get("product").toString());
         mMidiId = info.getId();
@@ -126,7 +130,7 @@ public class MainActivity extends AppCompatActivity {
         // now check there are valid output ports
         if (info.getOutputPortCount() <= 0) {
           Log.e(LOG_ID,
-              "MidiDeviceInfo invalid output port count "
+              "midi: MidiDeviceInfo invalid output port count "
                   + "id: " + info.getId() + " "
                   + "outputPortCount() : " + info.getOutputPortCount());
           System.exit(-1);
@@ -136,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
     }
     if (!foundMidiId) {
       Log.e(LOG_ID,
-          "MidiDeviceInfo invalid midiid "
+          "midi: MidiDeviceInfo invalid midiid "
               + "midiid: " + mMidiId);
       System.exit(-1);
     }
@@ -168,7 +172,7 @@ public class MainActivity extends AppCompatActivity {
       }
       if (extras.containsKey("usage")) {
         String usage = extras.getString("usage");
-        Log.d(LOG_ID, "Set usage" + usage);
+        Log.d(LOG_ID, "main: set usage" + usage);
         mUsage = Integer.parseInt(usage);
       }
       if (extras.containsKey("tbs")) {
@@ -179,7 +183,7 @@ public class MainActivity extends AppCompatActivity {
         mApi = extras.getString("api");
         // check the value
         if (!mApi.equals(AAUDIO) && !mApi.equals(OBOE) && !mApi.equals(JAVAAUDIO)) {
-          Log.e(LOG_ID, "invalid API type: \"" + mApi + "\"");
+          Log.e(LOG_ID, "main: invalid API type: \"" + mApi + "\"");
           System.exit(-1);
         }
       }
@@ -216,6 +220,70 @@ public class MainActivity extends AppCompatActivity {
     return settings;
   }
 
+  protected void createUsbConnection() {
+    Log.d(LOG_ID, "usb: create usb connection");
+
+    mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
+    IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
+    registerReceiver(usbReceiver, filter);
+
+    UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
+    UsbAccessory[] accs = manager.getAccessoryList();
+    HashMap<String, UsbDevice> devices = manager.getDeviceList();
+    Vector<UsbDeviceConnection> connected = new Vector<>();
+
+    java.util.Set<String> keys = devices.keySet();
+    if (keys.size() == 0) {
+      Log.d(LOG_ID, "usb: no keys");
+    }
+    for (String key : keys) {
+      Log.d(LOG_ID, String.format("usb: device: %s key: %s", key, devices.get(key)));
+      UsbDevice device = devices.get(key);
+      manager.requestPermission(device, mPermissionIntent);
+    }
+  }
+
+  protected void createMidiConnection() {
+    Log.d(LOG_ID, "midi: create midi connection");
+    MidiManager midiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
+    mHandler = Handler.createAsync(getMainLooper());
+    getMidiId(midiManager, mHandler);
+
+    // open the midi device
+    midiManager.openDevice(mMidiDeviceInfo, new MidiManager.OnDeviceOpenedListener() {
+      @Override
+      public void onDeviceOpened(MidiDevice device) {
+        // Just open the first port (and in most cases the only one)
+        MidiOutputPort output = device.openOutputPort(0);
+        if (output != null) {
+          if (Build.VERSION.SDK_INT >= 29 && mApi.equals(AAUDIO)) {
+            startReadingMidi(device, 0);
+          } else {
+            output.onConnect(new MidiReceiver() {
+              long mLastEventTs = 0;
+              @Override
+              public void onSend(byte[] msg, int offset, int count, long timestamp)
+                  throws IOException {
+                if (timestamp - mLastEventTs / 1000000 > 1000) {
+                  triggerMidi(timestamp);
+                  long nanoTime = System.nanoTime();
+                  Log.d(LOG_ID,
+                      "midi: received midi data: "
+                          + "timestamp: " + timestamp + " "
+                          + "nanoTime: " + nanoTime + " "
+                          + "diff: " + (nanoTime - timestamp));
+                }
+                mLastEventTs = timestamp;
+              }
+            });
+          }
+        } else {
+          Log.d(LOG_ID, "midi: failed to first port");
+        }
+      }
+    }, mHandler);
+  }
+
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
@@ -225,10 +293,11 @@ public class MainActivity extends AppCompatActivity {
 
     if (permissions != null && permissions.length > 0) {
       int REQUEST_ALL_PERMISSIONS = 0x4562;
-      Log.d(LOG_ID, "Request permissions: " + permissions);
+      Log.d(LOG_ID, "main: request permissions: " + permissions);
       ActivityCompat.requestPermissions(this, permissions, REQUEST_ALL_PERMISSIONS);
     }
 
+    // get the right place to write the experiment audio files
     File[] externalStorageVolumes =
         ContextCompat.getExternalFilesDirs(getApplicationContext(), null);
     File primaryExternalStorage = externalStorageVolumes[0];
@@ -243,6 +312,7 @@ public class MainActivity extends AppCompatActivity {
       String filePath = setupSignalSource(primaryExternalStorage.getAbsolutePath());
 
       // read the end signal into endSignal
+      // TODO(chema): move to a `readSignal()` function
       InputStream is = this.getResources().openRawResource(mEndSignal);
       final int endSignalSizeInBytes = is.available();
       final byte[] endSignalBuffer = new byte[endSignalSizeInBytes];
@@ -253,6 +323,7 @@ public class MainActivity extends AppCompatActivity {
       is.close();
 
       // read the begin signal into beginSignal
+      // TODO(chema): move to a `readSignal()` function
       is = this.getResources().openRawResource(mBeginSignal);
       final int beginSignalSizeInBytes = is.available();
       final byte[] beginSignalBuffer = new byte[beginSignalSizeInBytes];
@@ -284,27 +355,8 @@ public class MainActivity extends AppCompatActivity {
             endSignal, endSignalSizeInBytes, beginSignal, beginSignalSizeInBytes, recFilePath);
 
         if (mMidiId == -2) {
-          Log.d(LOG_ID, "Create usb midi connection");
+          createUsbConnection();
 
-          mPermissionIntent =
-              PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
-          IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
-          registerReceiver(usbReceiver, filter);
-
-          UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
-          UsbAccessory[] accs = manager.getAccessoryList();
-          HashMap<String, UsbDevice> devices = manager.getDeviceList();
-          Vector<UsbDeviceConnection> connected = new Vector<>();
-
-          java.util.Set<String> keys = devices.keySet();
-          if (keys.size() == 0) {
-            Log.d(LOG_ID, "No keys");
-          }
-          for (String key : keys) {
-            Log.d(LOG_ID, String.format("Device: %s \n---- %s", key, devices.get(key)));
-            UsbDevice device = devices.get(key);
-            manager.requestPermission(device, mPermissionIntent);
-          }
           (new Thread(new Runnable() {
             @Override
             public void run() {
@@ -312,50 +364,16 @@ public class MainActivity extends AppCompatActivity {
             }
           })).start();
           return;
-        }
-        MidiManager midiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
-        mHandler = Handler.createAsync(getMainLooper());
-        getMidiId(midiManager, mHandler);
+        } else {
+          createMidiConnection();
 
-        // open the midi device
-        midiManager.openDevice(mMidiDeviceInfo, new MidiManager.OnDeviceOpenedListener() {
-          @Override
-          public void onDeviceOpened(MidiDevice device) {
-            // Just open the first port (and in most cases the only one)
-            MidiOutputPort output = device.openOutputPort(0);
-            if (output != null) {
-              if (Build.VERSION.SDK_INT >= 29 && mApi.equals(AAUDIO)) {
-                startReadingMidi(device, 0);
-              } else {
-                output.onConnect(new MidiReceiver() {
-                  long mLastEventTs = 0;
-                  @Override
-                  public void onSend(byte[] msg, int offset, int count, long timestamp)
-                      throws IOException {
-                    if (timestamp - mLastEventTs / 1000000 > 1000) {
-                      triggerMidi(timestamp);
-                      long nanoTime = System.nanoTime();
-                      Log.d(LOG_ID,
-                          "received midi data: "
-                              + "timestamp: " + timestamp + " "
-                              + "nanoTime: " + nanoTime + " "
-                              + "diff: " + (nanoTime - timestamp));
-                    }
-                    mLastEventTs = timestamp;
-                  }
-                });
-              }
-            } else {
-              Log.d(LOG_ID, "Failed to first port");
+          (new Thread(new Runnable() {
+            @Override
+            public void run() {
+              runExperiment(mApi, settings);
             }
-          }
-        }, mHandler);
-        (new Thread(new Runnable() {
-          @Override
-          public void run() {
-            runExperiment(mApi, settings);
-          }
-        })).start();
+          })).start();
+        }
       }
 
     } catch (IOException e) {
@@ -396,7 +414,7 @@ public class MainActivity extends AppCompatActivity {
           filePath += "_chirp2_8k_300ms.raw";
           break;
         default:
-          Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
+          Log.d(LOG_ID, "main: unsupported sample rate:" + mSampleRate);
       }
     } else if (mSignal.equals("noise")) {
       switch (mSampleRate) {
@@ -413,7 +431,7 @@ public class MainActivity extends AppCompatActivity {
           filePath += "_bp_noise2_8k_300ms.raw";
           break;
         default:
-          Log.d(LOG_ID, "Unsupported sample rate:" + mSampleRate);
+          Log.d(LOG_ID, "main: unsupported sample rate:" + mSampleRate);
       }
     }
     return filePath;
@@ -448,17 +466,17 @@ public class MainActivity extends AppCompatActivity {
     AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
 
     for (AudioDeviceInfo info : adevs) {
-      Log.d(LOG_ID, "product_name: " + info.getProductName());
+      Log.d(LOG_ID, "main: product_name: " + info.getProductName());
       int[] channels = info.getChannelCounts();
 
-      Log.d(LOG_ID, "type: " + info.getType());
-      Log.d(LOG_ID, "id: " + info.getId());
+      Log.d(LOG_ID, "main: type: " + info.getType());
+      Log.d(LOG_ID, "main: id: " + info.getId());
       for (int channel : channels) {
-        Log.d(LOG_ID, "-- ch.count: " + channel);
+        Log.d(LOG_ID, "main: ch.count: " + channel);
       }
       int[] rates = info.getSampleRates();
       for (int rate : rates) {
-        Log.d(LOG_ID, "-- ch.rate: " + rate);
+        Log.d(LOG_ID, "main: ch.rate: " + rate);
       }
 
       if (info.isSink() && info.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
@@ -473,18 +491,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     if (api.equals(AAUDIO)) {
-      Log.d(LOG_ID, "Calling native (AAudio) API");
+      Log.d(LOG_ID, "main: calling native (AAudio) API");
       int status = runAAudio(settings);
     } else if (api.equals(OBOE)) {
-      Log.d(LOG_ID, "Calling native (oboe) API");
+      Log.d(LOG_ID, "main: calling native (oboe) API");
       int status = runOboe(settings);
-      Log.d(LOG_ID, "Done, status = " + status);
+      Log.d(LOG_ID, "main: done status: " + status);
     } else if (api.equals(JAVAAUDIO)) {
-      Log.d(LOG_ID, "Calling java (JavaAudio) API");
+      Log.d(LOG_ID, "main: calling java (JavaAudio) API");
       mJavaAudio = new JavaAudio();
       mJavaAudio.runJavaAudio(this, settings);
     }
-    Log.d(LOG_ID, "Done");
+    Log.d(LOG_ID, "main: done");
 
     System.exit(0);
   }
