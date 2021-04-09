@@ -25,7 +25,6 @@ import android.util.Log;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -75,23 +74,19 @@ public class MainActivity extends AppCompatActivity {
 
   PendingIntent mPermissionIntent;
 
-
-  private static final String ACTION_USB_PERMISSION =
-          "com.android.example.USB_PERMISSION";
+  private static final String ACTION_USB_PERMISSION = "com.android.example.USB_PERMISSION";
   private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
-
     public void onReceive(Context context, Intent intent) {
       String action = intent.getAction();
       if (ACTION_USB_PERMISSION.equals(action)) {
         synchronized (this) {
-          UsbDevice device = (UsbDevice)intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+          UsbDevice device = (UsbDevice) intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
 
           if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-            if(device != null){
+            if (device != null) {
               startUsbMidi(device);
             }
-          }
-          else {
+          } else {
             Log.d(LOG_ID, "permission denied for device " + device);
           }
         }
@@ -286,12 +281,13 @@ public class MainActivity extends AppCompatActivity {
 
         // pack all the info together into settings
         final TestSettings settings = buildTestSettings(
-                endSignal, endSignalSizeInBytes, beginSignal, beginSignalSizeInBytes, recFilePath);
+            endSignal, endSignalSizeInBytes, beginSignal, beginSignalSizeInBytes, recFilePath);
 
         if (mMidiId == -2) {
           Log.d(LOG_ID, "Create usb midi connection");
 
-          mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
+          mPermissionIntent =
+              PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
           IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
           registerReceiver(usbReceiver, filter);
 
@@ -373,7 +369,7 @@ public class MainActivity extends AppCompatActivity {
   }
 
   public void triggerMidi(long timestamp) {
-    if (mApi.equals(OBOE)) { //TODO: native oboe midi
+    if (mApi.equals(OBOE)) { // TODO: native oboe midi
       oboeMidiSignal(timestamp);
     } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
       mJavaAudio.javaMidiSignal(timestamp);
