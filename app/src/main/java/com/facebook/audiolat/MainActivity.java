@@ -1,7 +1,15 @@
 package com.facebook.audiolat;
 
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.hardware.usb.UsbAccessory;
+import android.hardware.usb.UsbDevice;
+import android.hardware.usb.UsbDeviceConnection;
+import android.hardware.usb.UsbManager;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
@@ -17,11 +25,14 @@ import android.util.Log;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Vector;
 
 public class MainActivity extends AppCompatActivity {
   public static final String LOG_ID = "audiolat";
@@ -46,6 +57,8 @@ public class MainActivity extends AppCompatActivity {
   boolean mMidiMode = false;
   int mMidiId = -1;
   MidiDeviceInfo mMidiDeviceInfo;
+  UsbMidi mUsbMidi;
+
   static {
     if (Build.VERSION.SDK_INT >= 29) {
       System.loadLibrary("audiolat");
@@ -59,6 +72,32 @@ public class MainActivity extends AppCompatActivity {
   public native void aaudioMidiSignal(long nanotime);
   public native void oboeMidiSignal(long nanotime);
   public native void startReadingMidi(MidiDevice device, int portNumber);
+
+  PendingIntent mPermissionIntent;
+
+
+  private static final String ACTION_USB_PERMISSION =
+          "com.android.example.USB_PERMISSION";
+  private final BroadcastReceiver usbReceiver = new BroadcastReceiver() {
+
+    public void onReceive(Context context, Intent intent) {
+      String action = intent.getAction();
+      if (ACTION_USB_PERMISSION.equals(action)) {
+        synchronized (this) {
+          UsbDevice device = (UsbDevice)intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+
+          if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
+            if(device != null){
+              startUsbMidi(device);
+            }
+          }
+          else {
+            Log.d(LOG_ID, "permission denied for device " + device);
+          }
+        }
+      }
+    }
+  };
 
   protected void getMidiId(MidiManager midiManager, Handler handler) {
     // check midi id
@@ -241,16 +280,46 @@ public class MainActivity extends AppCompatActivity {
         });
         t.start();
       } else {
-        MidiManager midiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
-        mHandler = Handler.createAsync(getMainLooper());
-        getMidiId(midiManager, mHandler);
-
+        // pack all the info together into settings
         // disable automatic playback
         mTimeBetweenSignals = -1;
 
         // pack all the info together into settings
         final TestSettings settings = buildTestSettings(
-            endSignal, endSignalSizeInBytes, beginSignal, beginSignalSizeInBytes, recFilePath);
+                endSignal, endSignalSizeInBytes, beginSignal, beginSignalSizeInBytes, recFilePath);
+
+        if (mMidiId == -2) {
+          Log.d(LOG_ID, "Create usb midi connection");
+
+          mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
+          IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
+          registerReceiver(usbReceiver, filter);
+
+          UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
+          UsbAccessory[] accs = manager.getAccessoryList();
+          HashMap<String, UsbDevice> devices = manager.getDeviceList();
+          Vector<UsbDeviceConnection> connected = new Vector<>();
+
+          java.util.Set<String> keys = devices.keySet();
+          if (keys.size() == 0) {
+            Log.d(LOG_ID, "No keys");
+          }
+          for (String key : keys) {
+            Log.d(LOG_ID, String.format("Device: %s \n---- %s", key, devices.get(key)));
+            UsbDevice device = devices.get(key);
+            manager.requestPermission(device, mPermissionIntent);
+          }
+          (new Thread(new Runnable() {
+            @Override
+            public void run() {
+              runExperiment(mApi, settings);
+            }
+          })).start();
+          return;
+        }
+        MidiManager midiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
+        mHandler = Handler.createAsync(getMainLooper());
+        getMidiId(midiManager, mHandler);
 
         // open the midi device
         midiManager.openDevice(mMidiDeviceInfo, new MidiManager.OnDeviceOpenedListener() {
@@ -267,14 +336,8 @@ public class MainActivity extends AppCompatActivity {
                   @Override
                   public void onSend(byte[] msg, int offset, int count, long timestamp)
                       throws IOException {
-                    if (((timestamp - mLastEventTs) / 1000000) > 1000) {
-                      if (mApi.equals(OBOE)) { // TODO: native oboe midi
-                        oboeMidiSignal(timestamp);
-                      } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
-                        mJavaAudio.javaMidiSignal(timestamp);
-                      } else if (mApi.equals(AAUDIO)) {
-                        aaudioMidiSignal(timestamp);
-                      }
+                    if (timestamp - mLastEventTs / 1000000 > 1000) {
+                      triggerMidi(timestamp);
                       long nanoTime = System.nanoTime();
                       Log.d(LOG_ID,
                           "received midi data: "
@@ -301,6 +364,21 @@ public class MainActivity extends AppCompatActivity {
 
     } catch (IOException e) {
       e.printStackTrace();
+    }
+  }
+
+  public void startUsbMidi(UsbDevice device) {
+    UsbMidi midi = new UsbMidi(this);
+    midi.openDevice(device, this);
+  }
+
+  public void triggerMidi(long timestamp) {
+    if (mApi.equals(OBOE)) { //TODO: native oboe midi
+      oboeMidiSignal(timestamp);
+    } else if (mApi.equals(JAVAAUDIO) && mJavaAudio != null) {
+      mJavaAudio.javaMidiSignal(timestamp);
+    } else if (mApi.equals(AAUDIO)) {
+      aaudioMidiSignal(timestamp);
     }
   }
 
