@@ -16,6 +16,8 @@
 #define LOGD(...) \
   __android_log_print(ANDROID_LOG_DEBUG, "audiolat", __VA_ARGS__)
 
+// #define DEBUG_DATA_CALLBACK
+
 static bool running = false;
 static int64_t last_midi_nanotime = -1;
 static int midi_port = 0;
@@ -70,6 +72,7 @@ bool midi_check_for_data(
     triggered = true;
   }
 #endif
+#ifdef DEBUG_DATA_CALLBACK
   LOGD(
       "playout midi triggered in full "
       "last_midi_nanotime: %" PRIi64
@@ -78,6 +81,7 @@ bool midi_check_for_data(
       "difference_ms: %" PRIi64,
       *last_midi_ts, current_nanotime,
       (current_nanotime - *last_midi_ts) / 1000000);
+#endif  // DEBUG_DATA_CALLBACK
 
   return triggered;
 }
@@ -95,11 +99,13 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       AAudioStream_getState(cb_data->playout_stream);
   float time_sec = (float)written_frames / (float)cb_data->samplerate;
 
+#ifdef DEBUG_DATA_CALLBACK
   LOGD(
       "dataCallback type: %s num_frames: %d time_sec: %.2f "
       "playout_num_frames_remaining: %d record_num_frames_remaining: %d",
       (stream == cb_data->record_stream) ? "record" : "playout", num_frames,
       time_sec, playout_num_frames_remaining, record_num_frames_remaining);
+#endif  // DEBUG_DATA_CALLBACK
 
   // Read MIDI Data
   if (midi_check_for_data(
@@ -122,10 +128,12 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       record_num_frames_remaining = cb_data->begin_signal_size_in_frames;
       // 3. set the time for the next experiment
       last_ts = time_sec;
+#ifdef DEBUG_DATA_CALLBACK
       LOGD(
           "experiment playout_num_frames_remaining: %d "
           "record_num_frames_remaining: %d",
           playout_num_frames_remaining, record_num_frames_remaining);
+#endif  // DEBUG_DATA_CALLBACK
     }
     int record_buffer_offset = 0;
     if (record_num_frames_remaining > 0 &&
@@ -139,8 +147,10 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
           std::min(record_num_frames_remaining, num_frames);
       int begin_signal_offset =
           cb_data->begin_signal_size_in_frames - record_num_frames_remaining;
+#ifdef DEBUG_DATA_CALLBACK
       LOGD("record source: begin num_frames: %d remaining: %d",
            num_frames_to_write, record_num_frames_remaining);
+#endif  // DEBUG_DATA_CALLBACK
       fwrite(cb_data->begin_signal + begin_signal_offset,
              (size_t)num_frames_to_write, sizeof(int16_t),
              cb_data->output_file_descriptor);
@@ -154,7 +164,9 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       // |    MMMMMMMMMMMMMMMMMMMMMMMM    |
       // +--------------------------------+
       int num_frames_to_write = num_frames - record_num_frames_remaining;
+#ifdef DEBUG_DATA_CALLBACK
       LOGD("record source: input num_frames: %d", num_frames_to_write);
+#endif  // DEBUG_DATA_CALLBACK
       fwrite(((int16_t *)audioData) + record_buffer_offset, sizeof(int16_t),
              (size_t)num_frames_to_write, cb_data->output_file_descriptor);
       num_frames -= num_frames_to_write;
@@ -167,8 +179,10 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       // +--------------------------------+
       int num_frames_to_write =
           std::min(record_num_frames_remaining, num_frames);
+#ifdef DEBUG_DATA_CALLBACK
       LOGD("record source: begin num_frames: %d remaining: %d",
            num_frames_to_write, record_num_frames_remaining);
+#endif  // DEBUG_DATA_CALLBACK
       fwrite(cb_data->begin_signal, (size_t)num_frames_to_write,
              sizeof(int16_t), cb_data->output_file_descriptor);
       num_frames -= num_frames_to_write;
@@ -182,7 +196,9 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
 
   } else {
     // playout
+#ifdef DEBUG_DATA_CALLBACK
     LOGD("******  playout num_frames: %d time_sec: %.2f", num_frames, time_sec);
+#endif  // DEBUG_DATA_CALLBACK
     int playout_buffer_offset = 0;
 
     if ((playout_num_frames_remaining > 0) &&
@@ -192,8 +208,10 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       // +--------------------------------+
       // |EEEEEEEE                        |
       // +--------------------------------+
+#ifdef DEBUG_DATA_CALLBACK
       LOGD("playout source: end num_frames: %d remaining: %d", num_frames,
            playout_num_frames_remaining);
+#endif  // DEBUG_DATA_CALLBACK
       int num_frames_to_write =
           std::min(num_frames, playout_num_frames_remaining);
       int end_signal_offset =
@@ -210,7 +228,9 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       // +--------------------------------+
       // |        SSSSSSSSSSSSSSSSSSSSSSSS|
       // +--------------------------------+
+#ifdef DEBUG_DATA_CALLBACK
       LOGD("playout source: silence num_frames: %d", num_frames);
+#endif  // DEBUG_DATA_CALLBACK
       memset((void *)(((int16_t *)audioData) + playout_buffer_offset), 0,
              sizeof(int16_t) * num_frames);
     }
