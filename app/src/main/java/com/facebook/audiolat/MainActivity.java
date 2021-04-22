@@ -465,6 +465,8 @@ public class MainActivity extends AppCompatActivity {
     AudioManager aman = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
     String outputSampleRate = aman.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
     Log.d(LOG_ID, "main: outputSampleRate: " + outputSampleRate);
+    String outputFramesPerBuffer = aman.getProperty(AudioManager.PROPERTY_OUTPUT_FRAMES_PER_BUFFER);
+    Log.d(LOG_ID, "main: outputFramesPerBuffer: " + outputFramesPerBuffer);
 
     AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
     for (AudioDeviceInfo info : adevs) {
