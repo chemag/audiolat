@@ -463,8 +463,10 @@ public class MainActivity extends AppCompatActivity {
 
   private void runExperiment(String api, TestSettings settings) {
     AudioManager aman = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-    AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
+    String outputSampleRate = aman.getProperty(AudioManager.PROPERTY_OUTPUT_SAMPLE_RATE);
+    Log.d(LOG_ID, "main: outputSampleRate: " + outputSampleRate);
 
+    AudioDeviceInfo[] adevs = aman.getDevices(AudioManager.GET_DEVICES_INPUTS);
     for (AudioDeviceInfo info : adevs) {
       Log.d(LOG_ID, "main: product_name: " + info.getProductName());
       int[] channels = info.getChannelCounts();
