@@ -49,8 +49,8 @@ struct callback_data {
   int samplerate;
   int timeout;
   int time_between_signals;
-  int rxruns;
-  int pxruns;
+  int record_xruns;
+  int playout_xruns;
 };
 
 bool midi_check_for_data(
@@ -99,6 +99,27 @@ bool midi_check_for_data(
   return triggered;
 }
 
+bool checkForXruns(AAudioStream *stream, int &stream_xruns,
+                   std::string stream_label) {
+  int xruns = AAudioStream_getXRunCount(stream);
+  if (xruns == 0) {
+    return false;
+  }
+  LOGE("%s: xruns: %d total_xruns: %d", stream_label.c_str(), xruns,
+       stream_xruns);
+  int old_frames_per_burst = AAudioStream_getFramesPerBurst(stream);
+  // add one burst size to the buffer size
+  int old_buffer_size_in_frames = AAudioStream_getBufferSizeInFrames(stream);
+  int new_buffer_size_in_frames =
+      old_buffer_size_in_frames + old_frames_per_burst;
+  AAudioStream_setBufferSizeInFrames(stream, new_buffer_size_in_frames);
+  LOGI("%s: old_buffer_size_in_frames: %d new_buffer_size_in_frames: %d",
+       stream_label.c_str(), old_buffer_size_in_frames,
+       new_buffer_size_in_frames);
+  stream_xruns += xruns;
+  return true;
+}
+
 aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
                                            void *audioData,
                                            int32_t num_frames) {
@@ -120,35 +141,10 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       time_sec, playout_num_frames_remaining, record_num_frames_remaining);
 #endif  // DEBUG_DATA_CALLBACK
 
-  int rxrun = AAudioStream_getXRunCount(cb_data->record_stream);
-  int pxrun = AAudioStream_getXRunCount(cb_data->playout_stream);
+  // check for xruns
+  checkForXruns(cb_data->record_stream, cb_data->record_xruns, "record");
+  checkForXruns(cb_data->playout_stream, cb_data->playout_xruns, "playout");
 
-  if (rxrun) {
-    LOGE("XRUN in record: %d, total: %d", rxrun, cb_data->pxruns);
-    int frames_per_burst =
-        AAudioStream_getFramesPerBurst(cb_data->record_stream);
-    int current_buffer_size_in_frames =
-        AAudioStream_getBufferSizeInFrames(cb_data->record_stream);
-    AAudioStream_setBufferSizeInFrames(
-        cb_data->record_stream,
-        current_buffer_size_in_frames + frames_per_burst);
-    LOGI("Add %d to record buffer, current: %d", frames_per_burst,
-         current_buffer_size_in_frames);
-    cb_data->rxruns += rxrun;
-  }
-  if (pxrun) {
-    LOGE("XRUN in playout:  %d, total: %d", pxrun, cb_data->pxruns);
-    int frames_per_burst =
-        AAudioStream_getFramesPerBurst(cb_data->playout_stream);
-    int current_buffer_size_in_frames =
-        AAudioStream_getBufferSizeInFrames(cb_data->playout_stream);
-    AAudioStream_setBufferSizeInFrames(
-        cb_data->playout_stream,
-        current_buffer_size_in_frames + frames_per_burst);
-    LOGI("Add %d to playback buffer, current: %d", frames_per_burst,
-         current_buffer_size_in_frames);
-    cb_data->pxruns += pxrun;
-  }
   // Read MIDI Data
   if (midi_check_for_data(
 #if __ANDROID_API__ >= 29
@@ -283,46 +279,68 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
 
 void log_current_settings(AAudioStream *playout_stream,
                           AAudioStream *record_stream) {
-  // print current settings
+  // get playout settings
+  int playout_samplerate = AAudioStream_getSampleRate(playout_stream);
   int playout_frames_per_burst = AAudioStream_getFramesPerBurst(playout_stream);
-  int playout_buffer_capacity =
+  int playout_buffer_capacity_in_frames =
       AAudioStream_getBufferCapacityInFrames(playout_stream);
   int playout_current_buffer_size_in_frames =
       AAudioStream_getBufferSizeInFrames(playout_stream);
-  int playout_samplerate = AAudioStream_getSampleRate(playout_stream);
+  float playout_time_per_burst_ms =
+      1000 * ((float)playout_frames_per_burst / (float)playout_samplerate);
+  float playout_current_buffer_size_in_ms =
+      1000 * ((float)playout_current_buffer_size_in_frames /
+              (float)playout_samplerate);
+  int playout_performance_mode =
+      AAudioStream_getPerformanceMode(playout_stream);
+  int playout_usage = AAudioStream_getUsage(playout_stream);
 
+  // get record settings
+  int record_samplerate = AAudioStream_getSampleRate(record_stream);
   int record_frames_per_burst = AAudioStream_getFramesPerBurst(record_stream);
-  int record_buffer_capacity =
+  int record_buffer_capacity_in_frames =
       AAudioStream_getBufferCapacityInFrames(record_stream);
   int record_current_buffer_size_in_frames =
       AAudioStream_getBufferSizeInFrames(record_stream);
-  int record_samplerate = AAudioStream_getSampleRate(record_stream);
+  float record_time_per_burst_ms =
+      1000 * ((float)record_frames_per_burst / (float)record_samplerate);
+  float record_current_buffer_size_in_ms =
+      1000 *
+      ((float)record_current_buffer_size_in_frames / (float)record_samplerate);
+  int record_performance_mode = AAudioStream_getPerformanceMode(record_stream);
+  int record_usage = AAudioStream_getUsage(record_stream);
+  int record_input_preset = AAudioStream_getInputPreset(record_stream);
 
-  LOGI("info: playout sample rate: %d", playout_samplerate);
-  LOGI("info: playout frames_per_burst: %d, %.2f ms", playout_frames_per_burst,
-       1000 * (float)playout_frames_per_burst / (float)playout_samplerate);
-  LOGI("info: playout current_buffer_size_in_frames: %d, %.2f ms",
-       playout_current_buffer_size_in_frames,
-       1000 * (float)playout_current_buffer_size_in_frames /
-           (float)playout_samplerate);
-  LOGI("info: playout buffer_capacity: %d",
-       AAudioStream_getBufferSizeInFrames(playout_stream));
-  LOGI("info: playout performance_mode: %d",
-       AAudioStream_getPerformanceMode(playout_stream));
-  LOGI("info: playout usage: %d", AAudioStream_getUsage(playout_stream));
+  // log playout info
+  LOGI("info: playout samplerate: %d", playout_samplerate);
+  LOGI("info: playout frames_per_burst: %d playout_time_per_burst_ms: %.2f",
+       playout_frames_per_burst, playout_time_per_burst_ms);
+  LOGI("info: playout buffer_capacity_in_frames: %d",
+       playout_buffer_capacity_in_frames);
+  LOGI(
+      "info: playout current_buffer_size_in_frames: %d "
+      "playout_current_buffer_size_in_ms: %.2f",
+      playout_current_buffer_size_in_frames, playout_current_buffer_size_in_ms);
+  LOGI("info: playout buffer_size_in_frames: %d",
+       playout_current_buffer_size_in_frames);
+  LOGI("info: playout performance_mode: %d", playout_performance_mode);
+  LOGI("info: playout usage: %d", playout_usage);
 
-  LOGI("info: record sample rate: %d", record_samplerate);
-  LOGI("info: record frames_per_burst: %d,  %.2f ms", record_frames_per_burst,
-       1000 * (float)record_frames_per_burst / (float)record_samplerate);
-  LOGI("info: record current_buffer_size_in_frames: %d, %.2f ms",
-       record_current_buffer_size_in_frames,
-       1000 * (float)record_current_buffer_size_in_frames /
-           (float)record_samplerate);
-  LOGI("info: record buffer_capacity: %d", record_buffer_capacity);
-  LOGI("info: record performance_mode: %d",
-       AAudioStream_getPerformanceMode(record_stream));
-  LOGI("info: record input preset: %d",
-       AAudioStream_getInputPreset(record_stream));
+  // log record info
+  LOGI("info: record samplerate: %d", record_samplerate);
+  LOGI("info: record frames_per_burst: %d record_time_per_burst_ms: %.2f",
+       record_frames_per_burst, record_time_per_burst_ms);
+  LOGI("info: record buffer_capacity_in_frames: %d",
+       record_buffer_capacity_in_frames);
+  LOGI(
+      "info: record current_buffer_size_in_frames: %d "
+      "record_current_buffer_size_in_ms: %.2f",
+      record_current_buffer_size_in_frames, record_current_buffer_size_in_ms);
+  LOGI("info: record buffer_size_in_frames: %d",
+       record_current_buffer_size_in_frames);
+  LOGI("info: record performance_mode: %d", record_performance_mode);
+  LOGI("info: record usage: %d", record_usage);
+  LOGI("info: record input preset: %d", record_input_preset);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -379,7 +397,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   fid = env->GetFieldID(cSettings, "usage", "I");
   jint usage = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "inputPreset", "I");
-  jint inpreset = env->GetIntField(settings, fid);
+  jint record_input_preset = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "timeBetweenSignals", "I");
   jint time_between_signals = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "recordDeviceId", "I");
@@ -400,8 +418,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   AAudioStreamBuilder *record_builder = nullptr;
   int16_t *end_signal_buffer = nullptr;
   int16_t *begin_signal_buffer = nullptr;
-  int playout_xrun = 0;
-  int record_xrun = 0;
+  int playout_xruns = 0;
+  int record_xruns = 0;
 
   // open the output file
   const char *output_file_name = env->GetStringUTFChars(output_file_path, 0);
@@ -462,8 +480,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   AAudioStreamBuilder_setPerformanceMode(record_builder,
                                          AAUDIO_PERFORMANCE_MODE_LOW_LATENCY);
   AAudioStreamBuilder_setBufferCapacityInFrames(record_builder, 64);
-  LOGI("set input preset: %d", inpreset);
-  AAudioStreamBuilder_setInputPreset(record_builder, inpreset);
+  LOGI("Set record input preset: %d", record_input_preset);
+  AAudioStreamBuilder_setInputPreset(record_builder, record_input_preset);
 
   AAudioStreamBuilder_setDataCallback(record_builder, dataCallback, &cb_data);
 
@@ -484,21 +502,33 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     goto cleanup;
   }
 
-  // set stream sizes
-  if (playout_buffer_size_in_bytes == 1) {
-    AAudioStream_setBufferSizeInFrames(
-        playout_stream, AAudioStream_getFramesPerBurst(playout_stream));
-  } else {
+  // set initial buffer sizes
+  {
+    int playout_buffer_size_in_frames = 0;
+    if (playout_buffer_size_in_bytes == -1) {
+      // default: use burst size
+      playout_buffer_size_in_frames =
+          AAudioStream_getFramesPerBurst(playout_stream);
+    } else {
+      // use the requested value
+      playout_buffer_size_in_frames = playout_buffer_size_in_bytes / 2;
+    }
     AAudioStream_setBufferSizeInFrames(playout_stream,
-                                       playout_buffer_size_in_bytes / 2);
+                                       playout_buffer_size_in_frames);
   }
 
-  if (record_buffer_size_in_bytes == -1) {
-    AAudioStream_setBufferSizeInFrames(
-        record_stream, AAudioStream_getFramesPerBurst(record_stream));
-  } else {
+  {
+    int record_buffer_size_in_frames = 0;
+    if (record_buffer_size_in_bytes == -1) {
+      // default: use burst size
+      record_buffer_size_in_frames =
+          AAudioStream_getFramesPerBurst(record_stream);
+    } else {
+      // use the requested value
+      record_buffer_size_in_frames = record_buffer_size_in_bytes / 2;
+    }
     AAudioStream_setBufferSizeInFrames(record_stream,
-                                       record_buffer_size_in_bytes / 2);
+                                       record_buffer_size_in_frames);
   }
 
   // set the callback data
@@ -535,8 +565,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     sleep(1);
   }
 
-  LOGI("playout_xrun: %d", cb_data.pxruns);
-  LOGI("record_xrun: %d", cb_data.rxruns);
+  LOGI("playout_xruns: %d", cb_data.playout_xruns);
+  LOGI("record_xruns: %d", cb_data.record_xruns);
   LOGI("* Final settings *");
   log_current_settings(playout_stream, record_stream);
   // cleanup

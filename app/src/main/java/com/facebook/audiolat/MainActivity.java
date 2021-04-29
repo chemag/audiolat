@@ -40,7 +40,8 @@ public class MainActivity extends AppCompatActivity {
   // default values
   int mSampleRate = 16000;
   int mTimeout = 15;
-  int mRecordBufferSizeInBytes = -1; // Use burst size
+  // default buffer size (-1) means "use burst size"
+  int mRecordBufferSizeInBytes = -1;
   int mPlayoutBufferSizeInBytes = -1;
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
@@ -178,9 +179,9 @@ public class MainActivity extends AppCompatActivity {
         mUsage = Integer.parseInt(usage);
       }
       if (extras.containsKey("iprst")) {
-        String preset = extras.getString("iprst");
-        Log.d(LOG_ID, "Set inputpreset" + preset);
-        mInputPreset = Integer.parseInt(preset);
+        String iprst = extras.getString("iprst");
+        Log.d(LOG_ID, "main: set inputpreset" + iprst);
+        mInputPreset = Integer.parseInt(iprst);
       }
       if (extras.containsKey("tbs")) {
         String tbs = extras.getString("tbs");
