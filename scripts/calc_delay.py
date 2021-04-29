@@ -4,25 +4,18 @@ import argparse
 import numpy as np
 import pandas as pd
 debug = 0
-MIN_DIST_SEC = 0.01
+MIN_DIST_SEC = 0 #0.01
 
 
 def find_pairs(data):
-    # files = pd.unique(data['reference'])
-
-    # The one with most hits is the "begin" signal
-    begin_filename = None
-    max_len = 0
-    for signal_filename in pd.unique(data['reference']):
-        ref_len = len(data.loc[data['reference'] == signal_filename])
-        if ref_len > max_len:
-            max_len = ref_len
-            begin_filename = signal_filename
+    # The fist one is the "begin" signal
+    begin_filename = data.iloc[0]['reference']
     matches = []
 
     begin_signals = data.loc[data['reference'] == begin_filename]
     end_signals = data.loc[data['reference'] != begin_filename]
-
+    print(f"{begin_signals}")
+    print(f"{end_signals}")
     for end_signal in end_signals.iterrows():
         closest_begin_signal = None
         min_dist_sec = 1
@@ -54,7 +47,7 @@ def parse_input_file(filename, options):
         pairs.to_csv(options.output, index=False)
     samples = len(pairs['latency'])
     if samples == 0:
-        print('warning: No data on {filename}')
+        print(f'warning: no pairs {pairs}')
         return None, None, 0
     average_sec = np.mean(pairs['latency'])
     stddev_sec = np.std(pairs['latency'])

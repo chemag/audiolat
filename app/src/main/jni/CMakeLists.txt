@@ -5,7 +5,7 @@
 
 cmake_minimum_required(VERSION 3.10.2)
 project("cmaketest")
-
+#add_definitions(-DDEBUG)
 add_library(audiolat SHARED aaudio.cpp oboe.cpp)
 add_library(audiolat_sdk28  SHARED  aaudio.cpp oboe.cpp)
 
