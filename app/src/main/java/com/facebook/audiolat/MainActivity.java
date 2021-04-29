@@ -13,6 +13,7 @@ import android.hardware.usb.UsbManager;
 import android.media.AudioAttributes;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
+import android.media.MediaRecorder;
 import android.media.midi.MidiDevice;
 import android.media.midi.MidiDeviceInfo;
 import android.media.midi.MidiManager;
@@ -39,12 +40,13 @@ public class MainActivity extends AppCompatActivity {
   // default values
   int mSampleRate = 16000;
   int mTimeout = 15;
-  int mRecordBufferSizeInBytes = 32;
-  int mPlayoutBufferSizeInBytes = 32;
+  int mRecordBufferSizeInBytes = -1; //Use burst size
+  int mPlayoutBufferSizeInBytes = -1;
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
   String mSignal = "chirp";
   int mUsage = AudioAttributes.USAGE_GAME;
+  int mInputPreset = MediaRecorder.AudioSource.UNPROCESSED;
   int mTimeBetweenSignals = 2;
   public String AAUDIO = "aaudio";
   public String JAVAAUDIO = "javaaudio";
@@ -175,6 +177,11 @@ public class MainActivity extends AppCompatActivity {
         Log.d(LOG_ID, "main: set usage" + usage);
         mUsage = Integer.parseInt(usage);
       }
+      if (extras.containsKey("iprst")) {
+        String preset = extras.getString("iprst");
+        Log.d(LOG_ID, "Set inputpreset" + preset);
+        mInputPreset = Integer.parseInt(preset);
+      }
       if (extras.containsKey("tbs")) {
         String tbs = extras.getString("tbs");
         mTimeBetweenSignals = Integer.parseInt(tbs);
@@ -215,6 +222,7 @@ public class MainActivity extends AppCompatActivity {
     settings.recordBufferSizeInBytes = mRecordBufferSizeInBytes;
     settings.playoutBufferSizeInBytes = mPlayoutBufferSizeInBytes;
     settings.usage = mUsage;
+    settings.inputPreset = mInputPreset;
     settings.timeBetweenSignals = mTimeBetweenSignals;
     settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
     return settings;
