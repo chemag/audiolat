@@ -40,7 +40,7 @@ public class MainActivity extends AppCompatActivity {
   // default values
   int mSampleRate = 16000;
   int mTimeout = 15;
-  int mRecordBufferSizeInBytes = -1; //Use burst size
+  int mRecordBufferSizeInBytes = -1; // Use burst size
   int mPlayoutBufferSizeInBytes = -1;
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
