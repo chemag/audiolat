@@ -4,7 +4,7 @@ import argparse
 import numpy as np
 import pandas as pd
 debug = 0
-MIN_DIST_SEC = 0 #0.01
+MIN_DIST_SEC = 0  # 0.01
 
 
 def find_pairs(data):
@@ -14,8 +14,6 @@ def find_pairs(data):
 
     begin_signals = data.loc[data['reference'] == begin_filename]
     end_signals = data.loc[data['reference'] != begin_filename]
-    print(f"{begin_signals}")
-    print(f"{end_signals}")
     for end_signal in end_signals.iterrows():
         closest_begin_signal = None
         min_dist_sec = 1
@@ -36,15 +34,15 @@ def find_pairs(data):
     return result
 
 
-def parse_input_file(filename, options):
+def parse_input_file(filename, output):
     # 135263,16.907875,47,audio.wav
     data = pd.read_csv(filename, header=0)
     if data is None:
         print(f'warning: No data on {filename}')
         return None, None, None
     pairs = find_pairs(data)
-    if options.output is not None:
-        pairs.to_csv(options.output, index=False)
+    if output is not None:
+        pairs.to_csv(output, index=False)
     samples = len(pairs['latency'])
     if samples == 0:
         print(f'warning: no pairs {pairs}')
@@ -62,11 +60,12 @@ def main():
     options = parser.parse_args()
 
     for filename in options.files:
-        average_sec, stddev_sec, samples = parse_input_file(filename, options)
+        average_sec, stddev_sec, samples = parse_input_file(
+            filename, options.output)
         if average_sec is None:
             continue
-        print(f'filename: {filename} average_sec: {average_sec} '
-              f'stddev_sec: {stddev_sec} samples: {samples}')
+        print(f'\n***\nfilename: {filename}\naverage roundtrip delay: {round(average_sec, 3)} sec'
+              f', stddev: {round(stddev_sec, 3)} sec\nnumbers of samples collected: {samples}\n***')
 
 
 if __name__ == '__main__':

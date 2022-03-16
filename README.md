@@ -212,27 +212,12 @@ $ ffmpeg -f s16le -acodec pcm_s16le -ac 1 -ar 16000 -i audiolat_chirp2_16k_300ms
 Then, run the analysis in the wav file:
 
 ```
-$ ./scripts/find_pulses.py ./audio/begin_signal.wav ./audio/chirp2_16k_300ms.wav -i audiolat_chirp2_16k_300ms.raw.wav -sr 16000 -t 20
-** Check for ./audio/begin_signal.wav
-calc, dist data len = 255038, template len = 32
-Append: 11761 @ 0.74 s, cc: 44
-Append: 32606 @ 2.04 s, cc: 99
-Append: 64606 @ 4.04 s, cc: 99
-Append: 84515 @ 5.28 s, cc: 53
-Append: 96926 @ 6.06 s, cc: 99
-Append: 128992 @ 8.06 s, cc: 99
-Append: 161566 @ 10.1 s, cc: 99
-Append: 168264 @ 10.52 s, cc: 23
-Append: 193566 @ 12.1 s, cc: 99
-Append: 225886 @ 14.12 s, cc: 99
-Append: 246443 @ 15.4 s, cc: 40
+$ ./scripts/find_pulses.py ./audio/begin_signal.wav ./audio/chirp2_16k_300ms.wav -i audiolat_chirp2_16k_300ms.raw.wav -t 50
+hirp2_16k_300ms.raw.wav -t 50
+** Check for .audio/begin_signal.wav
+threshold = 50.0
 ** Check for ./audio/chirp2_16k_300ms.wav
-calc, dist data len = 255038, template len = 4800
-Append: 34763 @ 2.17 s, cc: 34
-Append: 66763 @ 4.17 s, cc: 28
-Append: 99173 @ 6.2 s, cc: 29
-Append: 195809 @ 12.24 s, cc: 25
-Append: 228136 @ 14.26 s, cc: 40
+threshold = 50.0
 ```
 
 The script looks for occurrences of both the being and end signals.
@@ -252,13 +237,13 @@ Or an average of 140 ms audio latency.
 The analyzer also produces a csv file, which you can run using a script:
 
 ```
-$ ./scripts/calc_delay.py audiolat_chirp2_16k_300ms.raw.wav.csv
-2.17 sec
-4.17 sec
-6.2 sec
-12.24 sec
-14.26 sec
-Average for audiolat_chirp2_16k_300ms.raw.wav.csv: 138.18 ms
+$ ./scripts/calc_delay.py audiolat_chirp2_16k_300ms.raw.wav.csv -o result.csv
+***
+filename: audiolat_chirp2_16k_300ms.raw.wav.csv
+average roundtrip delay: 0.222 sec, stddev: 0.094 sec
+numbers of samples collected: 7
+***
+
 ```
 
 As an alternative, we provide a script that does the whole process in a single commands:
@@ -297,7 +282,7 @@ The recorded file can be found in `/sdcard/audiolat*.raw`. First pull it
 and convert it to pcm s16 wav.
 
 ```
-$ adb pull /sdcard/audiolat_chirp2_48k_300ms.raw .
+$ adb pull /storage/emulated/0/Android/data/com.facebook.audiolat/files/audiolat_chirp2_48k_300ms.raw .
 $ ffmpeg -f s16le -acodec pcm_s16le -ac 1 -ar 48000 -i audiolat_chirp2_48k_300ms.raw audiolat_chirp2_48k_300ms.raw.wav
 ```
 
@@ -305,40 +290,45 @@ Then, run the analysis in the wav file:
 
 ```
 $ ./scripts/find_transient.py -m ./audio/chirp2_48k_300ms.wav audiolat_chirp2_48k_300ms.raw.wav -t 30
-** Check audiolat_chirp2_48k_300ms.raw.wav
-    sample       time  local max level  file max level    rms
-0    14012   0.875750        -0.000265       -0.000265 -27.55
-1    50192   3.137000        -0.000265       -0.000265 -27.55
-2   100908   6.306750        -0.000265       -0.000265 -27.55
-3   149190   9.324375        -0.283431       -0.000265 -27.55
-4   186738  11.671125        -0.000265       -0.000265 -27.55
-5   247669  15.479313        -0.000265       -0.000265 -27.55
-6   279416  17.463500        -0.000265       -0.000265 -27.55
-7   335548  20.971750        -1.234378       -0.000265 -27.55
-8   370907  23.181687        -0.000265       -0.000265 -27.55
-9   411913  25.744563        -0.520236       -0.000265 -27.55
-10  456330  28.520625        -2.331111       -0.000265 -27.55
+** Check audiolat_chirp2_16k_300ms.raw.wav
+gain         = 0.5011872336272722
+[]%
+Audio peaks:
+   sample       time  local max level  file max level    rms
+0  123481   7.717562        -6.000265       -6.000265 -28.48
+1  156188   9.761750        -6.000265       -6.000265 -28.48
+2  186445  11.652812        -7.898992       -6.000265 -28.48
+3  210970  13.185625       -14.785660       -6.000265 -28.48
+4  233977  14.623563       -10.667891       -6.000265 -28.48
+Identified markers:
    sample       time  correlation
-0   16449   1.028063           47
-1   52281   3.267562           56
-2  337882  21.117625           35
-    time  delay                                               file  local max level  file max level    rms
-0   0.88   0.15  ./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k....            -0.00            -0.0 -27.55
-1   3.14   0.13  ./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k....            -0.00            -0.0 -27.55
-2  20.97   0.15  ./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k....            -1.23            -0.0 -27.55
+0  126971   7.935688           76
+1  159611   9.975687           76
+2  189691  11.855688           76
+3  214650  13.415625           76
+4  237690  14.855625           77
+   timestamp  latency                               file  local max level  file max level    rms
+0      7.718    0.218  audiolat_chirp2_16k_300ms.raw.wav            -6.00            -6.0 -28.48
+1      9.762    0.214  audiolat_chirp2_16k_300ms.raw.wav            -6.00            -6.0 -28.48
+2     11.653    0.203  audiolat_chirp2_16k_300ms.raw.wav            -7.90            -6.0 -28.48
+3     13.186    0.230  audiolat_chirp2_16k_300ms.raw.wav           -14.79            -6.0 -28.48
+4     14.624    0.232  audiolat_chirp2_16k_300ms.raw.wav           -10.67            -6.0 -28.48
+
 ```
 
 The script looks first for occurrences of the end signal (the injected chirp). For each positive find, it will look backwards for something that may be a hit (backwards includes the range between 1 second and 5 ms before the end signal).
 
-In this case, it found 3 occurrences of a begin signal slightly before the end one. Note there is a false positive in the second row (delay 0.03).
+In this case, it found five occurrences of a begin signal slightly before the end one.
 
 The analyzer also produces a csv file with the results (see "delay" column):
 
 ```
-$ cat audiolat_chirp2_48k_300ms.raw.wav.peaks_match.csv
-time,delay,file,local max level,file max level,rms
-0.88,0.15,./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k.exp_03.wav,-0.0,-0.0,-27.55
-3.14,0.13,./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k.exp_03.wav,-0.0,-0.0,-27.55
-20.97,0.15,./omni/omni.javaaudio.aec_on.agc_on.ns_on.16k.exp_03.wav,-1.23,-0.0,-27.55
+$ cat audiolat_chirp2_16k_300ms.raw.wav.peaks_match.csv
+timestamp,latency,file,local max level,file max level,rms
+7.718,0.218,audiolat_chirp2_16k_300ms.raw.wav,-6.0,-6.0,-28.48
+9.762,0.214,audiolat_chirp2_16k_300ms.raw.wav,-6.0,-6.0,-28.48
+11.653,0.203,audiolat_chirp2_16k_300ms.raw.wav,-7.9,-6.0,-28.48
+13.186,0.23,audiolat_chirp2_16k_300ms.raw.wav,-14.79,-6.0,-28.48
+14.624,0.232,audiolat_chirp2_16k_300ms.raw.wav,-10.67,-6.0,-28.48
 ```
 
