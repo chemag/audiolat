@@ -17,6 +17,7 @@ public class TestSettings {
   String outputFilePath;
   int usage;
   int inputPreset;
+  int contentType;
   int timeBetweenSignals;
   int javaaudioPerformanceMode;
 }

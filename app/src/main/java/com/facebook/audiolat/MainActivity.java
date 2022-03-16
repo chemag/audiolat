@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
   public static final String LOG_ID = "audiolat";
   Handler mHandler;
   // default values
-  int mSampleRate = 16000;
+  int mSampleRate = 48000;
   int mTimeout = 15;
   // default buffer size (-1) means "use burst size"
   int mRecordBufferSizeInBytes = -1;
@@ -46,7 +46,8 @@ public class MainActivity extends AppCompatActivity {
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
   String mSignal = "chirp";
-  int mUsage = AudioAttributes.USAGE_GAME;
+  int mUsage = AudioAttributes.USAGE_VOICE_COMMUNICATION;
+  int mContentType = AudioAttributes.CONTENT_TYPE_SPEECH;
   int mInputPreset = MediaRecorder.AudioSource.UNPROCESSED;
   int mTimeBetweenSignals = 2;
   public String AAUDIO = "aaudio";
@@ -64,6 +65,8 @@ public class MainActivity extends AppCompatActivity {
   int mMidiId = -1;
   MidiDeviceInfo mMidiDeviceInfo;
   UsbMidi mUsbMidi;
+  boolean mUsbAudioInput = false;
+  boolean mUsbAudioOutput = false;
 
   static {
     if (Build.VERSION.SDK_INT >= 29) {
@@ -206,6 +209,12 @@ public class MainActivity extends AppCompatActivity {
         String midiid = extras.getString("midiid");
         mMidiId = Integer.parseInt(midiid);
       }
+      if (extras.containsKey("usb-input")) {
+         mUsbAudioInput = Boolean.valueOf(extras.getString("usb-input"));
+      }
+      if (extras.containsKey("usb-output")) {
+        mUsbAudioOutput = Boolean.valueOf(extras.getString("usb-output"));
+      }
     }
   }
 
@@ -224,6 +233,7 @@ public class MainActivity extends AppCompatActivity {
     settings.playoutBufferSizeInBytes = mPlayoutBufferSizeInBytes;
     settings.usage = mUsage;
     settings.inputPreset = mInputPreset;
+    settings.contentType = mContentType;
     settings.timeBetweenSignals = mTimeBetweenSignals;
     settings.javaaudioPerformanceMode = mJavaaudioPerformanceMode;
     return settings;
@@ -492,10 +502,16 @@ public class MainActivity extends AppCompatActivity {
         Log.d(LOG_ID, "main: ch.rate: " + rate);
       }
 
-      if (info.isSink() && info.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+      if (!mUsbAudioOutput && info.isSink() && info.getType() == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
         settings.playoutDeviceId = info.getId();
-      } else if (info.isSource() && info.getType() == AudioDeviceInfo.TYPE_BUILTIN_MIC) {
+      }  else if (mUsbAudioOutput && info.isSink() && info.getType() == AudioDeviceInfo.TYPE_USB_DEVICE) {
+        Log.d(LOG_ID, "Usb output device: " + info.getId());
         settings.playoutDeviceId = info.getId();
+      } else if (!mUsbAudioInput && info.isSource() && info.getType() == AudioDeviceInfo.TYPE_BUILTIN_MIC) {
+        settings.recordDeviceId = info.getId();
+      } else if (mUsbAudioInput && info.isSource() && info.getType() == AudioDeviceInfo.TYPE_USB_DEVICE) {
+        Log.d(LOG_ID, "Usb input device: " + info.getId());
+        settings.recordDeviceId = info.getId();
       }
 
       if (settings.playoutDeviceId != 0 && settings.recordDeviceId != 0) {

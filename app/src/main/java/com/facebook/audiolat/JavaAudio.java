@@ -23,60 +23,70 @@ import java.nio.ByteBuffer;
 public class JavaAudio {
   public static final String LOG_ID = "audiolat";
   private long midi_timestamp = -1;
+  private long last_midi_timestamp = -1;
+
   public void javaMidiSignal(long nanotime) {
-    midi_timestamp = nanotime;
+      midi_timestamp = nanotime;
   }
 
   public void runJavaAudio(final Context context, final TestSettings settings) {
     Log.d(LOG_ID, "Start java experiment");
-
     android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
     final int AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT;
-    final int recordBufferSizeInBytes = AudioRecord.getMinBufferSize(
-        settings.sampleRate, AudioFormat.CHANNEL_IN_MONO, AUDIO_FORMAT);
-    final int playbackBufferSizeInBytes = AudioTrack.getMinBufferSize(
-        settings.sampleRate, AudioFormat.CHANNEL_OUT_MONO, AUDIO_FORMAT);
-    if (recordBufferSizeInBytes < 0) {
-      Log.e(LOG_ID, "buffer_size:" + recordBufferSizeInBytes);
-      return;
+    int recordBufferSizeInBytes_ = AudioRecord.getMinBufferSize(
+            settings.sampleRate, AudioFormat.CHANNEL_IN_MONO, AUDIO_FORMAT);
+    int playbackBufferSizeInBytes_ = AudioTrack.getMinBufferSize(
+            settings.sampleRate, AudioFormat.CHANNEL_OUT_MONO, AUDIO_FORMAT);
+
+    if (settings.playoutBufferSizeInBytes > 0) {
+      Log.d(LOG_ID, "Playback min buffer size is " + playbackBufferSizeInBytes_  +
+              " change to:"+settings.playoutBufferSizeInBytes );
+      playbackBufferSizeInBytes_ = settings.playoutBufferSizeInBytes;
     }
-    final byte audioData[] = new byte[recordBufferSizeInBytes];
-    final ByteBuffer recordData = ByteBuffer.allocateDirect(settings.sampleRate * 4);
+
+    Log.e(LOG_ID, "playback buffer size:" + playbackBufferSizeInBytes_);
+
 
     // create player object
     final AudioTrack player =
-        new AudioTrack.Builder()
-            .setAudioAttributes(new AudioAttributes.Builder()
-                                    .setUsage(settings.usage)
-                                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                                    .build())
-            .setAudioFormat(new AudioFormat.Builder()
-                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                                .setSampleRate(settings.sampleRate)
-                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                                .build())
-            .setTransferMode(AudioTrack.MODE_STATIC)
-            .setBufferSizeInBytes(settings.endSignalSizeInBytes)
-            .setPerformanceMode(settings.javaaudioPerformanceMode)
-            .build();
+            new AudioTrack.Builder()
+                    .setAudioAttributes(new AudioAttributes.Builder()
+                            .setUsage(settings.usage)
+                            .setContentType(settings.contentType)
+                            .build())
+                    .setAudioFormat(new AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(settings.sampleRate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build())
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .setBufferSizeInBytes(playbackBufferSizeInBytes_)
+                    .setPerformanceMode(settings.javaaudioPerformanceMode)
+                    .build();
+
+    if (settings.recordBufferSizeInBytes > 0){
+      Log.d(LOG_ID, "Recording min size is " + recordBufferSizeInBytes_  +
+                 " change to:"+settings.recordBufferSizeInBytes );
+      recordBufferSizeInBytes_ = settings.recordBufferSizeInBytes;
+
+    }
+    final ByteBuffer recordData = ByteBuffer.allocateDirect(recordBufferSizeInBytes_ * 4);
 
     // create record object
-    int playbackRead = 1;
     final AudioRecord recorder =
         new AudioRecord.Builder()
-            .setAudioSource(MediaRecorder.AudioSource.DEFAULT)
+            .setAudioSource(settings.inputPreset)
             .setAudioFormat(new AudioFormat.Builder()
                                 .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                                 .setSampleRate(settings.sampleRate)
                                 .setChannelMask(AudioFormat.CHANNEL_IN_MONO)
                                 .build())
-            .setBufferSizeInBytes(settings.recordBufferSizeInBytes)
-            .build();
+                                .setBufferSizeInBytes(recordBufferSizeInBytes_)
+                .build();
 
-    // print the recorder latency value
-    int latency = ((Integer) recorder.getMetrics().get(AudioRecord.MetricsConstants.LATENCY))
-                      .intValue(); // ms
-    Log.d(LOG_ID, "input_latency: " + latency);
+    final int recordBufferSizeInBytes = recordBufferSizeInBytes_;
+    final int playbackBufferSizeInByte = playbackBufferSizeInBytes_;
+    final byte audioData[] = recordData.array();
 
     // open the record file path
     BufferedOutputStream os = null;
@@ -85,96 +95,80 @@ public class JavaAudio {
       os = new BufferedOutputStream(new FileOutputStream(settings.outputFilePath));
     } catch (FileNotFoundException e) {
       Log.e(LOG_ID, "File not found for recording ", e);
+      return;
     }
     final BufferedOutputStream fos = os;
-
-    // set the recorder position
-    recorder.setRecordPositionUpdateListener(new AudioRecord.OnRecordPositionUpdateListener() {
-      @Override
-      public void onMarkerReached(AudioRecord audioRecord) {
-        AudioTimestamp ts = new AudioTimestamp();
-        Log.d(LOG_ID,
-            "** onMarkerReached: ts: "
-                + audioRecord.getTimestamp(ts, AudioTimestamp.TIMEBASE_MONOTONIC));
-      }
-
-      @Override
-      public void onPeriodicNotification(AudioRecord audioRecord) {}
-    });
 
     recorder.setNotificationMarkerPosition(settings.sampleRate * settings.timeout);
     recorder.setPositionNotificationPeriod(settings.sampleRate / 2);
     AudioTimestamp ts1 = new AudioTimestamp();
     AudioTimestamp ts2 = new AudioTimestamp();
 
-    // start everything
-    Log.d(LOG_ID, String.format("endSignalSizeInBytes: %d", settings.endSignalSizeInBytes));
-    player.write(settings.endSignal.array(), 0, settings.endSignalSizeInBytes);
-
     // create thread
     Thread rec = new Thread(new Runnable() {
       @Override
       public void run() {
-        recorder.startRecording();
-
-        int counter = 0;
-        int recIndex = 0;
+        midi_timestamp = 0;
         int written_frames = 0;
-        float last_ts = 0;
+        float last_ts = -settings.timeBetweenSignals;
         int rec_buffer_index = 0;
-        while (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) {
-          int read_bytes = recorder.read(audioData, 0, audioData.length);
-          float time_sec = (float) written_frames / (float) settings.sampleRate;
-          Log.d(LOG_ID,
-              String.format("record num_frames: %d time_sec: %.2f last_time: %.2f recbi: %d",
-                  written_frames, time_sec, last_ts, rec_buffer_index));
+        int player_offset = 0;
+        float time_sec = 0;
+        byte[] endSignal = settings.endSignal.array();
+        byte[] silence = new byte[playbackBufferSizeInByte];
 
-          if (((settings.timeBetweenSignals > 0)
-                  && (time_sec - last_ts > settings.timeBetweenSignals))
-              || (midi_timestamp > 0)) {
+        recorder.startRecording();
+        player.play();
+        while (recorder.getRecordingState() == AudioRecord.RECORDSTATE_RECORDING) {
+          int diff_sec = (int)(time_sec - last_ts);
+          if ((settings.timeBetweenSignals > 0 && diff_sec >= settings.timeBetweenSignals) || (midi_timestamp > 0)  || player_offset > 0) {
+            // Either we have a midi timestamp or there is sufficient time from last signal
             long nano = System.nanoTime();
-            Log.d(LOG_ID, "Start playing signal");
-            player.stop();
-            player.setPlaybackHeadPosition(0);
-            player.play();
+            int written = player.write(endSignal, player_offset, endSignal.length - player_offset, AudioTrack.WRITE_NON_BLOCKING);
+            if (written > 0) {
+              player_offset += written;
+            }
+            if (written == AudioTrack.ERROR_BAD_VALUE) {
+              Log.e(LOG_ID, "Failed to write: offset =  " + player_offset + ", len = "+endSignal.length);
+            }
+            if (player_offset >= endSignal.length || written == 0) {
+              // Written everything, reset and wait for next trigger
+              player_offset = 0;
+              midi_timestamp = 0;
+            }
             if (midi_timestamp > 0) {
               Log.d(LOG_ID,
                   String.format("midi triggered: %d curr time: %d, delay: %d", midi_timestamp, nano,
                       (nano - midi_timestamp)));
-
-              midi_timestamp = 0;
             }
+          } else {
+            player.write(silence, 0, silence.length, AudioTrack.WRITE_NON_BLOCKING);
           }
+          int read_bytes = recorder.read(audioData, 0, audioData.length, AudioRecord.READ_NON_BLOCKING);
           if (read_bytes > 0) {
             try {
               if (((settings.timeBetweenSignals > 0)
-                      && (time_sec - last_ts > settings.timeBetweenSignals))
+                      && (diff_sec >= settings.timeBetweenSignals))
                   || (rec_buffer_index > 0)) {
+                // An timed event has been triggered, write the dirac start signal
                 // signal size in bytes
                 int signal_size_in_bytes =
-                    (read_bytes > settings.beginSignalSizeInBytes - rec_buffer_index)
-                    ? settings.beginSignalSizeInBytes - rec_buffer_index
-                    : read_bytes;
+                        (read_bytes > settings.beginSignalSizeInBytes - rec_buffer_index)
+                                ? settings.beginSignalSizeInBytes - rec_buffer_index
+                                : read_bytes;
 
                 if (rec_buffer_index > 0) {
                   // Write tail
-                  Log.d(LOG_ID, "wt arral. " + settings.beginSignal.array().length);
                   fos.write(settings.beginSignal.array(), rec_buffer_index, signal_size_in_bytes);
                   fos.write(audioData, signal_size_in_bytes, read_bytes - signal_size_in_bytes);
                 } else {
                   // Write the beginning of the signal, the recorded data to be written could be 0
                   fos.write(audioData, 0, read_bytes - signal_size_in_bytes);
-                  Log.d(LOG_ID, "wh arral. " + settings.beginSignal.array().length);
                   fos.write(settings.beginSignal.array(), 0, signal_size_in_bytes);
                 }
-
                 rec_buffer_index += signal_size_in_bytes;
                 last_ts = time_sec;
-
-                Log.d(
-                    LOG_ID, String.format(String.format("rec_buffer_index: %d", rec_buffer_index)));
               } else {
-                Log.d(LOG_ID, "Write normal data: " + read_bytes);
                 fos.write(audioData, 0, read_bytes);
               }
             } catch (IOException e) {
@@ -182,6 +176,8 @@ public class JavaAudio {
             }
 
             written_frames += read_bytes / 2;
+            time_sec = (float) written_frames / (float) settings.sampleRate;
+
             if (rec_buffer_index >= settings.beginSignalSizeInBytes) {
               rec_buffer_index = 0;
             }
@@ -192,6 +188,12 @@ public class JavaAudio {
 
           } else {
             Log.e(LOG_ID, "Error reading audio data!");
+          }
+
+          try {
+            Thread.sleep(40);
+          } catch (InterruptedException e) {
+            e.printStackTrace();
           }
         }
       }

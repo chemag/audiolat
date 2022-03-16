@@ -49,8 +49,8 @@ struct callback_data {
   int samplerate;
   int timeout;
   int time_between_signals;
-  int record_xruns;
-  int playout_xruns;
+  int rxruns;
+  int pxruns;
 };
 
 bool midi_check_for_data(
@@ -120,6 +120,9 @@ bool checkForXruns(AAudioStream *stream, int &stream_xruns,
   return true;
 }
 
+int RELAXED_PLAYBACK_START = 2;
+int RELAXED_REC_START = 2;
+
 aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
                                            void *audioData,
                                            int32_t num_frames) {
@@ -141,9 +144,27 @@ aaudio_data_callback_result_t dataCallback(AAudioStream *stream, void *userData,
       time_sec, playout_num_frames_remaining, record_num_frames_remaining);
 #endif  // DEBUG_DATA_CALLBACK
 
-  // check for xruns
-  checkForXruns(cb_data->record_stream, cb_data->record_xruns, "record");
-  checkForXruns(cb_data->playout_stream, cb_data->playout_xruns, "playout");
+  int rxrun = AAudioStream_getXRunCount(cb_data->record_stream);
+  int pxrun = AAudioStream_getXRunCount(cb_data->playout_stream);
+
+  if (rxrun && rxrun > cb_data->rxruns && rxrun > RELAXED_REC_START) {
+      LOGE("XRUN in record: %d, total: %d", rxrun, cb_data->pxruns);
+      int frames_per_burst = AAudioStream_getFramesPerBurst(cb_data->record_stream);
+      int current_buffer_size_in_frames =
+              AAudioStream_getBufferSizeInFrames(cb_data->record_stream);
+      AAudioStream_setBufferSizeInFrames(cb_data->record_stream, current_buffer_size_in_frames + frames_per_burst);
+      LOGI("Add %d to record buffer, current: %d", frames_per_burst, current_buffer_size_in_frames);
+      cb_data->rxruns = rxrun;
+  }
+  if (pxrun && pxrun > cb_data->pxruns && pxrun > RELAXED_PLAYBACK_START) {
+      LOGE("XRUN in playout:  %d, total: %d", pxrun,  cb_data->pxruns);
+      int frames_per_burst = AAudioStream_getFramesPerBurst(cb_data->playout_stream);
+      int current_buffer_size_in_frames =
+              AAudioStream_getBufferSizeInFrames(cb_data->playout_stream);
+      AAudioStream_setBufferSizeInFrames(cb_data->playout_stream, current_buffer_size_in_frames + frames_per_burst);
+      LOGI("Add %d to playback buffer, current: %d", frames_per_burst, current_buffer_size_in_frames);
+      cb_data->pxruns = pxrun;
+  }
 
   // Read MIDI Data
   if (midi_check_for_data(
@@ -404,7 +425,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
   jint record_device_id = env->GetIntField(settings, fid);
   fid = env->GetFieldID(cSettings, "playoutDeviceId", "I");
   jint playout_device_id = env->GetIntField(settings, fid);
-
+  fid = env->GetFieldID(cSettings, "contentType", "I");
+  jint content_type = env->GetIntField(settings, fid);
   running = true;
 
   struct callback_data cb_data;
@@ -449,8 +471,11 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     LOGD("Failed to create playout stream");
     goto cleanup;
   }
+
+  LOGD("Playout device id: %d", playout_device_id);
   AAudioStreamBuilder_setDeviceId(playout_builder, playout_device_id);
   AAudioStreamBuilder_setUsage(playout_builder, usage);
+  AAudioStreamBuilder_setContentType(playout_builder, content_type);
   AAudioStreamBuilder_setDirection(playout_builder, AAUDIO_DIRECTION_OUTPUT);
   // AAUDIO_SHARING_MODE_EXCLUSIVE no available
   AAudioStreamBuilder_setSharingMode(playout_builder,
@@ -470,6 +495,7 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     LOGD("Failed to create record stream");
     goto cleanup;
   }
+  LOGD("Record device id: %d", record_device_id);
   AAudioStreamBuilder_setDeviceId(record_builder, record_device_id);
   AAudioStreamBuilder_setDirection(record_builder, AAUDIO_DIRECTION_INPUT);
   // AAUDIO_SHARING_MODE_EXCLUSIVE no available
@@ -565,8 +591,8 @@ Java_com_facebook_audiolat_MainActivity_runAAudio(JNIEnv *env,
     sleep(1);
   }
 
-  LOGI("playout_xruns: %d", cb_data.playout_xruns);
-  LOGI("record_xruns: %d", cb_data.record_xruns);
+  LOGI("playout_xrun: %d", cb_data.pxruns);
+  LOGI("record_xrun: %d", cb_data.rxruns);
   LOGI("* Final settings *");
   log_current_settings(playout_stream, record_stream);
   // cleanup
