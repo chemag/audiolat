@@ -332,3 +332,14 @@ timestamp,latency,file,local max level,file max level,rms
 14.624,0.232,audiolat_chirp2_16k_300ms.raw.wav,-10.67,-6.0,-28.48
 ```
 
+## 6. Alternative operation
+
+The complete playout and roundtrip measurments can also be performed using the playout.py and roundtrip.py sctipts respectively.
+They will set appropriate defults, run the tests and calculate the results.
+run:
+
+```
+$ ./scripts/rountrip.py -h
+```
+for options.
+
