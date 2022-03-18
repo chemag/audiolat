@@ -187,7 +187,7 @@ public class JavaAudio {
             }
 
           } else {
-            Log.e(LOG_ID, "Error reading audio data!");
+            Log.e(LOG_ID, "Error reading audio data! ret: " + read_bytes);
           }
 
           try {

@@ -1,14 +1,87 @@
 #!/usr/bin/env python3
 # (c) Facebook, Inc. and its affiliates. Confidential and proprietary.
-
+import os
+import subprocess
 import soundfile as sf
 import pandas as pd
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from math import log10
-global options
+import time
 
+serial = ""
+DUT_FILE_PATH = ''
+MAIN_ACTIVITY = ''
+APPNAME_MAIN = ''
+
+def checkVersion():
+    global DUT_FILE_PATH
+    global MAIN_ACTIVITY
+    global APPNAME_MAIN
+    adb_cmd = f'adb {serial} shell cmd package list packages | grep -oE com.facebook.audiolat.*'
+    ret, stdout, stderr = run_cmd(adb_cmd, False)
+    print(f'ret = {ret}, std ={stdout}')
+    name=stdout.rstrip('\n')
+    APPNAME_MAIN = name
+    # com.facebook.audiolat.sdk28/com.facebook.audiolat.MainActivity
+    MAIN_ACTIVITY = f'{name}/com.facebook.audiolat.MainActivity'
+    DUT_FILE_PATH = f'/storage/emulated/0/Android/data/{name}'
+
+    print(f'main activity: {MAIN_ACTIVITY}')
+    print(f'file path: {DUT_FILE_PATH}')
+    return APPNAME_MAIN, MAIN_ACTIVITY, DUT_FILE_PATH
+
+def run_cmd(cmd, debug=0):
+    ret = True
+    try:
+        if debug > 0:
+            print(cmd, sep=' ')
+        process = subprocess.Popen(cmd, shell=True,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+    except Exception:
+        ret = False
+        print('Failed to run command: ' + cmd)
+
+    return ret, stdout.decode(), stderr.decode()
+
+
+def wait_for_exit(serial, debug=0):
+    adb_cmd = f'adb {serial} shell pidof {APPNAME_MAIN}'
+    pid = -1
+    current = 1
+    while (current != -1):
+        if pid == -1:
+            ret, stdout, stderr = run_cmd(adb_cmd, False)
+            pid = -1
+            if len(stdout) > 0:
+                pid = int(stdout)
+        time.sleep(1)
+        ret, stdout, stderr = run_cmd(adb_cmd, debug)
+        current = -2
+        if len(stdout) > 0:
+            try:
+                current = int(stdout)
+            except Exception:
+                print(f'wait for exit caught exception: {stdout}')
+                continue
+        else:
+            current = -1
+
+
+def build_args(settings):
+    print(f'Settings\n{settings}')
+    ret = ""
+    if not isinstance(settings['content_type'], type(None)):
+        ret = f"{ret} -e ctype {settings['content_type']} "
+    if not isinstance(settings['usage'], type(None)):
+        ret = f"{ret} -e usage {settings['usage']} "
+    if not isinstance(settings['input_preset'], type(None)):
+        ret = f"{ret} -e iprst {settings['input_preset']} "
+    # -e pbs 32 -e usage 14 -e atpm 1'
+    return ret
 
 def floatToDB(val):
     """

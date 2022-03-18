@@ -181,6 +181,11 @@ public class MainActivity extends AppCompatActivity {
         Log.d(LOG_ID, "main: set usage" + usage);
         mUsage = Integer.parseInt(usage);
       }
+      if (extras.containsKey("ctype")) {
+        String ctype = extras.getString("ctype");
+        Log.d(LOG_ID, "Set content type" + ctype);
+        mContentType = Integer.parseInt(ctype);
+      }
       if (extras.containsKey("iprst")) {
         String iprst = extras.getString("iprst");
         Log.d(LOG_ID, "main: set inputpreset" + iprst);
