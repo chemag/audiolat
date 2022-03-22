@@ -42,6 +42,7 @@ public class MainActivity extends AppCompatActivity {
   int mTimeout = 15;
   // default buffer size (-1) means "use burst size"
   int mRecordBufferSizeInBytes = -1;
+  float mGain = -6;
   int mPlayoutBufferSizeInBytes = -1;
   int mBeginSignal = R.raw.begin_signal;
   int mEndSignal = R.raw.chirp2_16k_300ms;
@@ -214,11 +215,17 @@ public class MainActivity extends AppCompatActivity {
         String midiid = extras.getString("midiid");
         mMidiId = Integer.parseInt(midiid);
       }
-      if (extras.containsKey("usb-input")) {
+      if (extras.containsKey("usb_input")) {
          mUsbAudioInput = Boolean.valueOf(extras.getString("usb-input"));
       }
-      if (extras.containsKey("usb-output")) {
+      if (extras.containsKey("usb_output")) {
         mUsbAudioOutput = Boolean.valueOf(extras.getString("usb-output"));
+      }
+      if (extras.containsKey("time_sec")) {
+        mTimeout = Integer.valueOf(extras.getString("time_sec"));
+      }
+      if (extras.containsKey("gaindb")) {
+        mGain = Float.valueOf(extras.getString("gaindb"));
       }
     }
   }
@@ -339,9 +346,10 @@ public class MainActivity extends AppCompatActivity {
       // TODO(chema): move to a `readSignal()` function
       InputStream is = this.getResources().openRawResource(mEndSignal);
       final int endSignalSizeInBytes = is.available();
-      final byte[] endSignalBuffer = new byte[endSignalSizeInBytes];
+      byte[] endSignalBuffer = new byte[endSignalSizeInBytes];
 
       int read_bytes = is.read(endSignalBuffer);
+      utils.gain(endSignalBuffer, mGain);
       final ByteBuffer endSignal = ByteBuffer.allocateDirect(read_bytes);
       endSignal.put(endSignalBuffer); // Small files only :)
       is.close();
@@ -350,7 +358,8 @@ public class MainActivity extends AppCompatActivity {
       // TODO(chema): move to a `readSignal()` function
       is = this.getResources().openRawResource(mBeginSignal);
       final int beginSignalSizeInBytes = is.available();
-      final byte[] beginSignalBuffer = new byte[beginSignalSizeInBytes];
+      byte[] beginSignalBuffer = new byte[beginSignalSizeInBytes];
+      utils.gain(beginSignalBuffer, mGain);
 
       read_bytes = is.read(beginSignalBuffer);
       final ByteBuffer beginSignal = ByteBuffer.allocateDirect(read_bytes);
