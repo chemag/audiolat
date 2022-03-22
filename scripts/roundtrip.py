@@ -78,7 +78,7 @@ def measure(samplerate, api, usb, output, label, settings):
     results = []
     start_signal = f'{REF_DIR}/begin_signal.wav'
     chirp = f'{REF_DIR}/chirp2_{short_rate}k_300ms.wav'
-    threshold = 30
+    threshold = int(settings['threshold'])
     for file in local_files:
         if not os.path.exists(file):
             print('File does not exits - fix it :) ')
@@ -113,6 +113,7 @@ def main():
     parser.add_argument('-a', '--api', default='aaudio')
     parser.add_argument('-r', '--rates', default='48000')
     parser.add_argument('-g', '--gaindB', default='-32')
+    parser.add_argument('-t', '--threshold', default='20')
     parser.add_argument('--usage', type=int, default=None)
     parser.add_argument('--content_type', type=int, default=None)
     parser.add_argument('--input_preset', type=int, default=None,)
@@ -130,7 +131,8 @@ def main():
     settings = {'content_type': options.content_type,
                 'usage': options.usage,
                 'input_preset': options.input_preset,
-                'gaindB': options.gaindB}
+                'gaindB': options.gaindB,
+                'threshold': options.threshold}
 
     rates = []
     apis = []
