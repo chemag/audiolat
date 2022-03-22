@@ -78,7 +78,7 @@ def measure(samplerate, api, usb, output, label, settings):
     results = []
     start_signal = f'{REF_DIR}/begin_signal.wav'
     chirp = f'{REF_DIR}/chirp2_{short_rate}k_300ms.wav'
-    threshold = 80
+    threshold = 40
     for file in local_files:
         if not os.path.exists(file):
             print('File does not exits - fix it :) ')
@@ -90,7 +90,7 @@ def measure(samplerate, api, usb, output, label, settings):
             start_signal, file, samplerate, 90)
         output_name = f'{file}_signal.csv'
         print(f'look for {chirp}')
-        chirp_signals = fp.find_pulses_raw_input(chirp, file, samplerate, 20)
+        chirp_signals = fp.find_pulses_raw_input(chirp, file, samplerate, threshold)
 
         tmp = [start_signals, chirp_signals]
         data = pd.concat(tmp)
@@ -112,6 +112,7 @@ def main():
     parser.add_argument('-s', '--serial', default='')
     parser.add_argument('-a', '--api', default='aaudio')
     parser.add_argument('-r', '--rates', default='48000')
+    parser.add_argument('-g', '--gaindB', default='-32')
     parser.add_argument('--usage', type=int, default=None)
     parser.add_argument('--content_type', type=int, default=None)
     parser.add_argument('--input_preset', type=int, default=None,)
@@ -128,7 +129,8 @@ def main():
     APPNAME_MAIN, MAIN_ACTIVITY, DUT_FILE_PATH = cm.checkVersion()
     settings = {'content_type': options.content_type,
                 'usage': options.usage,
-                'input_preset': options.input_preset}
+                'input_preset': options.input_preset,
+                'gaindB': options.gaindB}
 
     rates = []
     apis = []

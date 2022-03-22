@@ -80,6 +80,8 @@ def build_args(settings):
         ret = f"{ret} -e usage {settings['usage']} "
     if not isinstance(settings['input_preset'], type(None)):
         ret = f"{ret} -e iprst {settings['input_preset']} "
+    if not isinstance(settings['gaindB'], type(None)):
+        ret = f"{ret} -e gaindb {settings['gaindB']} "
     # -e pbs 32 -e usage 14 -e atpm 1'
     return ret
 
