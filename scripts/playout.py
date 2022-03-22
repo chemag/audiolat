@@ -85,14 +85,14 @@ def measure(samplerate, api, usb, output, label, settings):
     results = []
     start_signal = f'{REF_DIR}/begin_signal.wav'
     chirp = f'{REF_DIR}/chirp2_{short_rate}k_300ms.wav'
-    threshold = 80
+    threshold = 50
     matches = None
     for file in local_files:
         if not os.path.exists(file):
             print('File does not exits - fix it :) ')
             exit(0)
 
-        matches = ft.find_transients_raw(file, samplerate, chirp, file)
+        matches = ft.find_transients_raw(file, samplerate, chirp, file, threshold=threshold)
         matches.to_csv(f'{workdir}/{label}.csv', index=False)
         print(f'{matches}')
     return matches

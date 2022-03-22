@@ -78,7 +78,7 @@ def measure(samplerate, api, usb, output, label, settings):
     results = []
     start_signal = f'{REF_DIR}/begin_signal.wav'
     chirp = f'{REF_DIR}/chirp2_{short_rate}k_300ms.wav'
-    threshold = 40
+    threshold = 30
     for file in local_files:
         if not os.path.exists(file):
             print('File does not exits - fix it :) ')
