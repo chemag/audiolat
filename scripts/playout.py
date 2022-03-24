@@ -66,7 +66,7 @@ def measure(samplerate, api, usb, output, label, settings):
     output_dir = f'{workdir}/{sub_dir}/'
     run_cmd(f'mkdir {output_dir}')
 
-    chirp = f'{REF_DIR}/chirp2_{short_rate}k_300ms.wav'
+    chirp = f'{REF_DIR}/chirp_{short_rate}k_300ms.wav'
     result_json = []
     local_files = []
     for file in output_files:
@@ -84,8 +84,8 @@ def measure(samplerate, api, usb, output, label, settings):
 
     results = []
     start_signal = f'{REF_DIR}/begin_signal.wav'
-    chirp = f'{REF_DIR}/chirp2_{short_rate}k_300ms.wav'
-    threshold = int(setting['threshold'])
+    chirp = f'{REF_DIR}/chirp_{short_rate}k_300ms.wav'
+    threshold = int(settings['threshold'])
     matches = None
     for file in local_files:
         if not os.path.exists(file):
