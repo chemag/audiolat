@@ -105,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
     }
   };
 
-  protected void getMidiId(MidiManager midiManager, Handler handler) {
+  protected boolean getMidiId(MidiManager midiManager, Handler handler) {
     // check midi id
     boolean foundMidiId = false;
     MidiDeviceInfo[] infos = midiManager.getDevices();
@@ -149,8 +149,9 @@ public class MainActivity extends AppCompatActivity {
       Log.e(LOG_ID,
           "midi: MidiDeviceInfo invalid midiid "
               + "midiid: " + mMidiId);
-      System.exit(-1);
+      return false;
     }
+    return true;
   }
 
   protected void readCliArguments() {
@@ -408,6 +409,73 @@ public class MainActivity extends AppCompatActivity {
             }
           })).start();
         }
+
+        MidiManager midiManager = (MidiManager) this.getSystemService(Context.MIDI_SERVICE);
+        mHandler = Handler.createAsync(getMainLooper());
+        if (getMidiId(midiManager, mHandler)) {
+          // open the midi device
+          midiManager.openDevice(mMidiDeviceInfo, new MidiManager.OnDeviceOpenedListener() {
+            @Override
+            public void onDeviceOpened(MidiDevice device) {
+              // Just open the first port (and in most cases the only one)
+              MidiOutputPort output = device.openOutputPort(0);
+              if (output != null) {
+                if (Build.VERSION.SDK_INT >= 29 && mApi.equals(AAUDIO)) {
+                  startReadingMidi(device, 0);
+                } else {
+                  output.onConnect(new MidiReceiver() {
+                    long mLastEventTs = 0;
+
+                    @Override
+                    public void onSend(byte[] msg, int offset, int count, long timestamp)
+                            throws IOException {
+                      if (timestamp - mLastEventTs / 1000000 > 1000) {
+                        triggerMidi(timestamp);
+                        long nanoTime = System.nanoTime();
+                        Log.d(LOG_ID,
+                                "received midi data: "
+                                        + "timestamp: " + timestamp + " "
+                                        + "nanoTime: " + nanoTime + " "
+                                        + "diff: " + (nanoTime - timestamp));
+                      }
+                      mLastEventTs = timestamp;
+                    }
+                  });
+                }
+              } else {
+                Log.d(LOG_ID, "Failed to first port");
+              }
+            }
+          }, mHandler);
+        } else {
+          Log.d(LOG_ID, "No system midi device available, try to create a usb connection");
+
+          mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
+          IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
+          registerReceiver(usbReceiver, filter);
+
+          UsbManager manager = (UsbManager) getSystemService(Context.USB_SERVICE);
+          UsbAccessory[] accs = manager.getAccessoryList();
+          HashMap<String, UsbDevice> devices = manager.getDeviceList();
+          Vector<UsbDeviceConnection> connected = new Vector<>();
+
+          java.util.Set<String> keys = devices.keySet();
+          if (keys.size() == 0) {
+            Log.d(LOG_ID, "No device");
+            System.exit(-1);
+          }
+          for (String key : keys) {
+            Log.d(LOG_ID, String.format("Device: %s \n---- %s", key, devices.get(key)));
+            UsbDevice device = devices.get(key);
+            manager.requestPermission(device, mPermissionIntent);
+          }
+        }
+        (new Thread(new Runnable() {
+          @Override
+          public void run() {
+            runExperiment(mApi, settings);
+          }
+        })).start();
       }
 
     } catch (IOException e) {
