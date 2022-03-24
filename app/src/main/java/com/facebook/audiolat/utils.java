@@ -45,7 +45,6 @@ public class utils {
         int index = 0;
         for (float f : input) {
             mShorts[index++] = (short) (f * MAX);
-            System.out.println("f ="+f+ " -> " + mShorts[index - 1] + ", MAX = " + MAX);
         }
 
 
