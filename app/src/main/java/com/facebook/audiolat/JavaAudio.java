@@ -125,6 +125,11 @@ public class JavaAudio {
             // Either we have a midi timestamp or there is sufficient time from last signal
             long nano = System.nanoTime();
             int written = player.write(endSignal, player_offset, endSignal.length - player_offset, AudioTrack.WRITE_NON_BLOCKING);
+            if (midi_timestamp > 0 && player_offset == 0) {
+              Log.d(LOG_ID,
+                      String.format("midi triggered: %d curr time: %d MS, delay: %d MS", midi_timestamp, nano/1000000,
+                              (nano - midi_timestamp)/1000000));
+            }
             if (written > 0) {
               player_offset += written;
             }
@@ -136,11 +141,7 @@ public class JavaAudio {
               player_offset = 0;
               midi_timestamp = 0;
             }
-            if (midi_timestamp > 0) {
-              Log.d(LOG_ID,
-                  String.format("midi triggered: %d curr time: %d, delay: %d", midi_timestamp, nano,
-                      (nano - midi_timestamp)));
-            }
+
           } else {
             player.write(silence, 0, silence.length, AudioTrack.WRITE_NON_BLOCKING);
           }

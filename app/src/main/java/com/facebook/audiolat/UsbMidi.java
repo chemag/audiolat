@@ -104,12 +104,16 @@ public class UsbMidi {
                                     switch (event) {
                                         case 9:
                                             if (byte3 == 0x00) {
+
                                                 long timestamp = System.nanoTime();
-                                                if (timestamp - lastTimeStamp / 1000000 > 1000) {
+                                                long diff = timestamp - lastTimeStamp / 1000000;
+                                            } else {
+                                                long timestamp = System.nanoTime();
+                                                long diff = timestamp - lastTimeStamp / 1000000;
+                                                if (diff > 1000) {
                                                     mMain.triggerMidi(timestamp);
                                                 }
-                                            } else {
-                                                Log.d(id, "midi on");
+                                                lastTimeStamp = timestamp;
                                             }
 
                                             break;
