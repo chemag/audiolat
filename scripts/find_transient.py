@@ -8,10 +8,10 @@ import numpy as np
 import common as cm
 
 
-def find_transients_raw(audiopath, samplerate, marker, test_label):
+def find_transients_raw(audiopath, samplerate, marker, test_label, threshold=50):
     noisy = sf.SoundFile(audiopath, 'r', format='RAW', samplerate=int(samplerate),
                          channels=1, subtype='PCM_16', endian='FILE')
-    return find_transients(noisy, marker, test_label)
+    return find_transients(noisy, marker, test_label, threshold)
 
 
 def find_transients(audiofile, marker, test_label, threshold=50, limit_marker=-1, verbose=False, peak_span=18, max_distance=0.5, leading=False):

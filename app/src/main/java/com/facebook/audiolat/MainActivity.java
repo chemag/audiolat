@@ -242,6 +242,7 @@ public class MainActivity extends AppCompatActivity {
     settings.outputFilePath = recFilePath;
     settings.sampleRate = mSampleRate;
     settings.recordBufferSizeInBytes = mRecordBufferSizeInBytes;
+    Log.d(LOG_ID, "recbuf: " +mRecordBufferSizeInBytes + ", playbuf = "  +mPlayoutBufferSizeInBytes);
     settings.playoutBufferSizeInBytes = mPlayoutBufferSizeInBytes;
     settings.usage = mUsage;
     settings.inputPreset = mInputPreset;
@@ -435,16 +436,16 @@ public class MainActivity extends AppCompatActivity {
       // choose end signal file
       switch (mSampleRate) {
         case 48000:
-          mEndSignal = R.raw.chirp2_48k_300ms;
-          filePath += "_chirp2_48k_300ms.raw";
+          mEndSignal = R.raw.chirp_48k_300ms;
+          filePath += "_chirp_48k_300ms.raw";
           break;
         case 16000:
-          mEndSignal = R.raw.chirp2_16k_300ms;
+          mEndSignal = R.raw.chirp_16k_300ms;
           filePath += "_chirp2_16k_300ms.raw";
           break;
         case 8000:
-          mEndSignal = R.raw.chirp2_8k_300ms;
-          filePath += "_chirp2_8k_300ms.raw";
+          mEndSignal = R.raw.chirp_8k_300ms;
+          filePath += "_chirp_8k_300ms.raw";
           break;
         default:
           Log.d(LOG_ID, "main: unsupported sample rate:" + mSampleRate);

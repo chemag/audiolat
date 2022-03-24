@@ -38,7 +38,7 @@ def measure(samplerate, api, usb, output, label, settings):
 
     adb_cmd = f'adb {serial} shell am force-stop {APPNAME_MAIN}'
     ret, stdout, stderr = run_cmd(adb_cmd, debug)
-    args = f'-e api {api} -e sr {samplerate} {cm.build_args(settings)}'
+    args = f'-e api {api} -e sr {samplerate} {cm.build_args(settings)} '
     if usb:
         args += ' -e usb-input true -e usb-output true'
     adb_cmd = f'adb {serial} shell am start -n {MAIN_ACTIVITY} {args}'
@@ -77,7 +77,7 @@ def measure(samplerate, api, usb, output, label, settings):
 
     results = []
     start_signal = f'{REF_DIR}/begin_signal.wav'
-    chirp = f'{REF_DIR}/chirp2_{short_rate}k_300ms.wav'
+    chirp = f'{REF_DIR}/chirp_{short_rate}k_300ms.wav'
     threshold = int(settings['threshold'])
     for file in local_files:
         if not os.path.exists(file):
