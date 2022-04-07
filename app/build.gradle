@@ -6,6 +6,10 @@ android {
     compileSdkVersion 29
     buildToolsVersion "30.0.2"
 
+	lintOptions {
+        abortOnError false
+    }
+
     defaultConfig {
         applicationId "com.facebook.audiolat"
 
