@@ -36,7 +36,7 @@ def measure(samplerate, api, usb, output, label, settings):
     short_rate = int(samplerate/1000)
 
     # cleanup    
-    adb_cmd = f'adb {serial} shell rm {DUT_FILE_PATH}/files/*.raw'
+    adb_cmd = f'adb {serial} shell rm {DUT_FILE_PATH}/*.raw'
     ret, stdout, stderr = run_cmd(adb_cmd, debug)
 
     adb_cmd = f'adb {serial} shell am force-stop {APPNAME_MAIN}'
@@ -52,7 +52,7 @@ def measure(samplerate, api, usb, output, label, settings):
     time.sleep(10)
     # Collect result
     cm.wait_for_exit(serial)
-    adb_cmd = f'adb {serial} shell ls {DUT_FILE_PATH}/files/*.raw'
+    adb_cmd = f'adb {serial} shell ls {DUT_FILE_PATH}/*.raw'
     ret, stdout, stderr = run_cmd(adb_cmd, True)
     output_files = [stdout]
 

@@ -54,6 +54,9 @@ public class MainActivity extends AppCompatActivity {
   public String AAUDIO = "aaudio";
   public String JAVAAUDIO = "javaaudio";
   public String OBOE = "oboe";
+
+  String mWorkDirectory = "";
+
   // default backend
   String mApi = AAUDIO;
   JavaAudio mJavaAudio;
@@ -159,6 +162,7 @@ public class MainActivity extends AppCompatActivity {
     Bundle extras = this.getIntent().getExtras();
 
     if (extras != null) {
+      Log.d(LOG_ID, "args: " + extras.toString());
       if (extras.containsKey("sr")) {
         String rate = extras.getString("sr");
         mSampleRate = Integer.parseInt(rate);
@@ -227,6 +231,10 @@ public class MainActivity extends AppCompatActivity {
       }
       if (extras.containsKey("gaindb")) {
         mGain = Float.valueOf(extras.getString("gaindb"));
+      }
+      if (extras.containsKey("device-workdir")) {
+        Log.d(LOG_ID, "Set work directory to :" + extras.getString("device-workdir"));
+        mWorkDirectory = extras.getString("device-workdir");
       }
     }
   }
@@ -330,20 +338,31 @@ public class MainActivity extends AppCompatActivity {
       ActivityCompat.requestPermissions(this, permissions, REQUEST_ALL_PERMISSIONS);
     }
 
-    // get the right place to write the experiment audio files
-    File[] externalStorageVolumes =
-        ContextCompat.getExternalFilesDirs(getApplicationContext(), null);
-    File primaryExternalStorage = externalStorageVolumes[0];
 
     try {
+      Log.d(LOG_ID, "main: read cli");
       readCliArguments();
 
+      // get the right place to write the experiment audio files
+      File primaryExternalStorage = null;
+      if (mWorkDirectory == null) {
+        File[] externalStorageVolumes =
+                    ContextCompat.getExternalFilesDirs(getApplicationContext(), null);
+        primaryExternalStorage = externalStorageVolumes[0];
+      } else {
+        primaryExternalStorage = new File(mWorkDirectory);
+      }
       setContentView(R.layout.activity_main);
       android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
 
-      // choose end signal file
+      if (primaryExternalStorage == null) {
+          Log.e(LOG_ID, "Failed to use external storage");
+          return;
+      }
+      Log.d(LOG_ID, "Setup signal");
       String filePath = setupSignalSource(primaryExternalStorage.getAbsolutePath());
 
+      // choose end signal file
       // read the end signal into endSignal
       // TODO(chema): move to a `readSignal()` function
       InputStream is = this.getResources().openRawResource(mEndSignal);

@@ -33,7 +33,7 @@ def measure(samplerate, api, usb, output, label, settings):
     short_rate = int(samplerate/1000)
 
     # cleanup
-    adb_cmd = f'adb {serial} shell rm {DUT_FILE_PATH}/files/*.raw'
+    adb_cmd = f'adb {serial} shell rm {DUT_FILE_PATH}/*.raw'
     ret, stdout, stderr = run_cmd(adb_cmd, debug)
 
     adb_cmd = f'adb {serial} shell am force-stop {APPNAME_MAIN}'
@@ -41,13 +41,14 @@ def measure(samplerate, api, usb, output, label, settings):
     args = f'-e api {api} -e sr {samplerate} {cm.build_args(settings)} '
     if usb:
         args += ' -e usb-input true -e usb-output true'
+    args += f' -e device-workdir {DUT_FILE_PATH}'
     adb_cmd = f'adb {serial} shell am start -n {MAIN_ACTIVITY} {args}'
     ret, stdout, stderr = run_cmd(adb_cmd, debug)
 
     time.sleep(10)
     # Collect result
     cm.wait_for_exit(serial)
-    adb_cmd = f'adb {serial} shell ls {DUT_FILE_PATH}/files/*.raw'
+    adb_cmd = f'adb {serial} shell ls {DUT_FILE_PATH}/*.raw'
     ret, stdout, stderr = run_cmd(adb_cmd, True)
     output_files = [stdout]
 
@@ -118,16 +119,22 @@ def main():
     parser.add_argument('--content_type', type=int, default=None)
     parser.add_argument('--input_preset', type=int, default=None,)
     parser.add_argument('--usb',  action='store_true',)
+    parser.add_argument('--device-workdir', '-w', default=None)
     options = parser.parse_args()
 
     global serial
     global DUT_FILE_PATH
     global MAIN_ACTIVITY
     global APPNAME_MAIN
+    DUT_FILE_PATH = options.device_workdir
     if len(options.serial) > 0:
         serial = f'-s {options.serial}'
 
-    APPNAME_MAIN, MAIN_ACTIVITY, DUT_FILE_PATH = cm.checkVersion()
+    APPNAME_MAIN, MAIN_ACTIVITY, app_path = cm.checkVersion()
+    if DUT_FILE_PATH is None:
+        DUT_FILE_PATH = app_path
+
+    print(f"DUT2 file path: {DUT_FILE_PATH}")
     settings = {'content_type': options.content_type,
                 'usage': options.usage,
                 'input_preset': options.input_preset,
